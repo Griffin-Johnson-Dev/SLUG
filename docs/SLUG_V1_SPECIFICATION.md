@@ -32,6 +32,10 @@ Source MUST be strict UTF-8. One UTF-8 BOM is accepted only at the beginning of 
 
 Whitespace outside strings and comments is non-semantic. Whitespace MUST NOT be required to disambiguate valid source.
 
+For structural/comparison composite punctuation whose component characters do not themselves form an already-valid competing token sequence in that grammar position, physical adjacency is not required. Thus `:=`, `: =`, and `:\n=` denote the same definition operator; the same whitespace-transparent treatment applies to `<:.`, `::=`, `!==`, `===`, `<:`, `==`, `!=`, `<=`, and `>=`. Implementations MUST recognize these forms lexically/contextually rather than by globally deleting whitespace from source text: strings preserve their contents, line comments still terminate at their physical newline, block comments preserve their lexical boundaries, comments are barriers to one composite token, and the token source span covers the complete original spelling including intervening whitespace.
+
+Executable compound punctuation `++`, `--`, `^^`, `~-`, `~~`, and `//` is compatibility-sensitive because the separated component punctuation can itself participate in valid SLUG 1.0 source. Exact contiguous spellings retain their frozen compound-token identity. Whitespace between those characters does not instruct the lexer to fuse them and therefore cannot silently reinterpret a previously valid separated program. Higher grammar layers may accept an equivalent separated spelling only where doing so is unambiguous and does not change an already-valid SLUG 1.0 interpretation. This compatibility rule is an explicit lexical exception to the otherwise non-semantic role of whitespace.
+
 ### 2.2 Comments
 
 SLUG 1 comments are:

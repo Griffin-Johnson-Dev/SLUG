@@ -8,7 +8,7 @@ Support is claimed only after the exact release candidate passes the release gat
 | --- | --- | --- |
 | x86-64 Linux | GCC 14.2.0, C11 | **PASS — certified 2026-09-25** |
 | x86-64 Linux | Clang 17.0.0, C11 | **PASS — certified 2026-09-25** |
-| x86-64 Windows | clang-cl + LLVM clang | **PENDING — final 1.0.0 Windows-host certification required before tag** |
+| x86-64 Windows | clang-cl 23.1.1 + LLVM clang 23.1.1 | **PASS — 1.0.0 certified 2026-09-26; 1.0.1 exact-tree recertification required before 1.0.1 publication** |
 | macOS | — | not claimed for 1.0 unless separately tested |
 
 Each claimed platform must exercise compiler build, installed-prefix layout, UTF-8 source/console/path behavior, runtime conformance, LSP discovery, and the supported memory-safety diagnostics available on that host.
@@ -25,4 +25,4 @@ On an x86-64 Windows host with Python 3.11+, Node.js, LLVM `clang-cl`, and LLVM 
 .\scripts\certify_windows.ps1
 ```
 
-That script is the release-authority path for changing the Windows matrix row from pending to PASS. It performs an installed `clang-cl` build, fixed-point bootstrap proof, the full native/differential release gate, editor/install smoke, UTF-8 coverage, and public-example execution.
+That script is the release-authority path for certifying each exact Windows release tree. It performs an installed `clang-cl` build, fixed-point bootstrap proof, the full native/differential release gate, editor/install smoke, UTF-8 coverage, and public-example execution. A prior-version PASS does not automatically certify a later patch tree.

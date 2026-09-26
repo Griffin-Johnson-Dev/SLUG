@@ -24,9 +24,10 @@ def main()->int:
     ns=ap.parse_args(); g=Gate()
 
     pkg=json.loads((EXT/'package.json').read_text())
-    g.ok(pkg['name']=='slug-language' and pkg['publisher']=='slug-lang','extension identity')
-    g.ok(pkg['version']=='0.9.0' and pkg.get('preview') is True,'extension preview version')
+    g.ok(pkg['name']=='slug-devkit' and pkg['publisher']=='griffinjohnson','extension identity')
+    g.ok(pkg['version']=='1.0.2' and pkg.get('preview') is False,'extension public version')
     g.ok(pkg['engines']['vscode'].startswith('^1.'),'VS Code engine constraint')
+    g.ok(pkg.get('icon')=='icon.png' and (EXT/'icon.png').is_file(),'Marketplace icon payload')
     langs=pkg['contributes']['languages']; g.ok(any(x['id']=='slug' and '.slg' in x['extensions'] and '.slgc' in x['extensions'] for x in langs),'SLUG language registration')
     g.ok(pkg['contributes']['grammars'][0]['scopeName']=='source.slug','TextMate grammar registration')
     cmds={x['command'] for x in pkg['contributes']['commands']}; g.ok({'slug.restartLanguageServer','slug.showToolingInfo','slug.showProjectInfo'}<=cmds,'editor commands')
@@ -36,10 +37,23 @@ def main()->int:
     g.ok(lang['comments']['lineComment']=='##' and lang['comments']['blockComment']==['#*','*#'],'language comment syntax')
     grammar=json.loads((EXT/'syntaxes/slug.tmLanguage.json').read_text())
     g.ok(grammar['scopeName']=='source.slug' and 'repository' in grammar,'grammar JSON')
+    import re
     grammar_text=json.dumps(grammar)
-    g.ok(all(x in grammar_text for x in ('co','ci','ty','cv','in','iv','ln','sl','by')),'root builtins highlighted')
+    builtin_rx=grammar['repository']['builtins']['patterns'][0]['match']
+    g.ok(all(re.search(builtin_rx,x) for x in ('co','ci','ty','cv','in','iv','ln','sl','by')),'root builtins highlighted')
+    g.ok(all(re.search(builtin_rx,' '.join(x)) for x in ('co','ci','ty','cv','in','iv','ln','sl','by')),'spaced root builtins highlighted')
     comment_patterns=[x.get('match','') or x.get('begin','') for x in grammar['repository']['comments']['patterns']]
     g.ok(any('##!?' in x for x in comment_patterns) and any('#\\*!?' in x for x in comment_patterns),'ordinary/preserved comments highlighted')
+    operator_rx=grammar['repository']['operators']['patterns'][0]['match']
+    g.ok('[ \\t]*' in builtin_rx and 'c[ \\t]*i' in builtin_rx,'whitespace-aware builtin highlighting')
+    g.ok(':[ \\t]*=' in operator_rx and '\\+\\+' in operator_rx,'compatibility-aware operator highlighting')
+    g.ok(all(re.fullmatch(operator_rx,x) for x in (': =',': : =','= =','! =','< =','> =','< :')),'spaced structural operators highlighted')
+    g.ok(all(re.fullmatch(operator_rx,x) for x in ('++','--','^^','~-','~~','//')),'contiguous compound operators highlighted')
+    g.ok(all(re.fullmatch(operator_rx,x) is None for x in ('+ +','- -','^ ^','~ -','~ ~','/ /')),'separated executable punctuation not falsely fused')
+    keyword_rx=grammar['repository']['keywords']['patterns'][0]['match']
+    class_rx=grammar['repository']['classes']['patterns'][1]['match']
+    g.ok(all(re.search(keyword_rx,x) for x in ('i f','e i','e e','r v')),'spaced reserved words highlighted')
+    g.ok(re.search(class_rx,'A B') is not None,'spaced class highlighted')
 
     js_check_files=(
         EXT/'extension.js',
@@ -64,16 +78,20 @@ def main()->int:
         canonical_vsix_sha=sha(a)
         with zipfile.ZipFile(a) as z:
             names=set(z.namelist())
-            required={'[Content_Types].xml','extension.vsixmanifest','extension/package.json','extension/extension.js','extension/src/discovery.js','extension/src/lsp-client.js','extension/syntaxes/slug.tmLanguage.json','extension/LICENSE.txt'}
+            required={'[Content_Types].xml','extension.vsixmanifest','extension/package.json','extension/extension.js','extension/src/discovery.js','extension/src/lsp-client.js','extension/syntaxes/slug.tmLanguage.json','extension/icon.png','extension/LICENSE.txt'}
             g.ok(required<=names,'VSIX required payload')
             g.ok(not any('/test/' in x or x.startswith('extension/test/') for x in names),'VSIX excludes tests')
-            epkg=json.loads(z.read('extension/package.json')); g.ok(epkg['name']=='slug-language','VSIX embedded package manifest')
+            epkg=json.loads(z.read('extension/package.json')); g.ok(epkg['name']=='slug-devkit' and epkg.get('icon')=='icon.png','VSIX embedded package manifest')
             xm=ET.fromstring(z.read('extension.vsixmanifest'))
             nsxml={'v':'http://schemas.microsoft.com/developer/vsx-schema/2011'}
             asset=xm.find(".//v:Asset[@Type='Microsoft.VisualStudio.Code.Manifest']",nsxml)
             g.ok(asset is not None and asset.attrib.get('Path')=='extension/package.json','VSIX code manifest asset')
             prop=xm.find(".//v:Property[@Id='Microsoft.VisualStudio.Code.PreRelease']",nsxml)
-            g.ok(prop is not None and prop.attrib.get('Value')=='true','VSIX prerelease marker')
+            g.ok(prop is not None and prop.attrib.get('Value')=='false','VSIX public release marker')
+            icon_asset=xm.find(".//v:Asset[@Type='Microsoft.VisualStudio.Services.Icons.Default']",nsxml)
+            g.ok(icon_asset is not None and icon_asset.attrib.get('Path')=='extension/icon.png','VSIX Marketplace icon asset')
+            flags=xm.find('.//v:GalleryFlags',nsxml)
+            g.ok(flags is not None and flags.text=='Public','VSIX public gallery flag')
 
     layout=json.loads((ROOT/'INSTALL_LAYOUT.json').read_text())
     g.ok(layout.get('vscode_extension')=='share/slug/1.0/tooling/vscode/slug-language.vsix','install-layout VSIX contract')

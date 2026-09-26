@@ -30,6 +30,7 @@ def main()->int:
     run('CLI contract',[py,'tests/run_v1_cli_contract.py','--slug',str(slug)])
     run('project/dependencies',[py,'tests/run_v1_project_manifest.py','--slug',str(slug)])
     run('identifier migration',[py,'tests/run_v1_identifier_migration.py','--slug',str(slug)])
+    run('whitespace invariance',[py,'tests/run_v1_whitespace_invariance.py','--slug',str(slug)])
     run('exception control',[py,'tests/run_v1_exception_control_hardening.py','--slug',str(slug)])
     run('module linkage',[py,'tests/run_v1_module_linkage.py','--slug',str(slug)])
     run('tooling',[py,'tests/run_v1_tooling.py','--slug',str(slug)])

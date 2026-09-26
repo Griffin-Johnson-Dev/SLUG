@@ -1,6 +1,6 @@
-# SLUG Language Support for VS Code
+# SLUG Lang DevKit for VS Code
 
-Thin VS Code client for the native-backed SLUG 1.0 language server.
+Official thin VS Code client for the native-backed SLUG 1.0 language server.
 
 The extension contains no separate SLUG parser or compiler. It discovers an installed toolchain, starts the matching versioned `slug-lsp.js`, and provides diagnostics, formatting, project/tooling inspection, syntax highlighting, and language configuration for `.slg` and `.slgc` files.
 

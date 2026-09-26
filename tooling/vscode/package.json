@@ -1,11 +1,11 @@
 {
-  "name": "slug-language",
-  "displayName": "SLUG Language Support",
-  "description": "Language support for SLUG using the native-backed slug-lsp server.",
-  "version": "0.9.0",
-  "publisher": "slug-lang",
+  "name": "slug-devkit",
+  "displayName": "SLUG Lang DevKit",
+  "description": "Development tools for the SLUG programming language: syntax highlighting, diagnostics, formatting, and native-backed LSP integration.",
+  "version": "1.0.2",
+  "publisher": "griffinjohnson",
   "license": "Apache-2.0",
-  "preview": true,
+  "preview": false,
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -88,5 +88,6 @@
   },
   "extensionKind": [
     "workspace"
-  ]
+  ],
+  "icon": "icon.png"
 }

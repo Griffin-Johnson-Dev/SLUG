@@ -20,6 +20,7 @@ NATIVE = ROOT / 'build' / 'v1' / ('program_cli.exe' if __import__('os').name == 
 CASES = [
     # definitions / nearest assignment / contracts
     'a:=1', 'a::=1', '_x_:=1', 'a@i:=1', '_x_@u8:=255$',
+    'a : = 1', 'a : : = 1', 'a\n:\n=\n1',
     'a=2', '_x_=3', 'a:=1;a=2', 'a:=b:=3',
     # mutation
     'a++', 'a--', '_x_++', '_x_--', 'a:=1;a++;a--',
@@ -27,6 +28,7 @@ CASES = [
     'a[0]=9', 'a[0][1]=2', "m['name']:='slug'", 'a[0]:=a', 'a[0][1]:=2',
     # effectful expression statements
     'co[1]', "co['x']", 'co[1 2 +]', 'ci[]', "ci['name?']",
+    'co[8 4 2 / /]',
     'a:=ci[]', 'a:=@i\'123\'', "a:=@f'1.25'", 'a:=@ty[b]c',
     # return / raise
     'rv', 'rv 1', 'rv a', 'rv a b', 'rv 1 2 +', "er'bad'", "er 'bad'",
@@ -46,6 +48,7 @@ CASES = [
     'if?0{co1}ei?1{co2}ee{co3}', 'if?0{co1}ei?0{co2}ei?1{co3}',
     '?1{a:=1;coa}', '?1{?0{co1}ee{co2}}',
     'a:=1? a==1 {coa}ee{co0}', 'if?[1==1]+[2>1]{co1}',
+    'a : = 1 ? a = = 1 { c o a } e i ? a ! = 2 { c o 9 } e e { c o 0 }',
     'wl?0{co1}', 'wl?1{bl}', 'a:=3;wl?a>0{a--;?a==1{bl}}',
     'wl?1{?0{cl}ee{bl}}', '~ab x{?x{rvx}ee{rv0}};ab1',
     # fl repeat / foreach / range / iterable slices (dense spellings first)
@@ -83,6 +86,8 @@ CASES = [
 ]
 
 INVALID_CASES = [
+    # Preserve valid-v1 distinction: separated + + is not the contiguous ++ mutation token.
+    'a:=1;a + +',
     # removed v0.x lexical forms
     'a:=A$',
     'a:=FF$',

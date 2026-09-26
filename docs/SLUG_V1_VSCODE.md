@@ -23,3 +23,9 @@ When the versioned JavaScript server is available, the extension launches it wit
 ## Diagnostics
 
 Unsaved buffers use the compiler's stdin-overlay tooling path. Lexical, parse/structural, and supported semantic failures receive substantiated native ranges using `failure-provenance-v2`; Unicode columns are converted to LSP UTF-16 positions by the server. The client never invents diagnostic positions.
+
+## Marketplace identity and whitespace-aware highlighting
+
+The public extension identity is `griffinjohnson.slug-devkit`, displayed as **SLUG Lang DevKit**. The installed source distribution may continue to store the deterministic VSIX under the compatibility filename `slug-language.vsix`; the Marketplace identity is defined by the embedded manifest rather than that filename.
+
+DevKit 1.0.2 aligns the TextMate grammar with compiler 1.0.1's whitespace-invariance repair for same-line spellings. Core two-letter builtins/keywords/classes and whitespace-transparent structural punctuation such as `: =`, `: : =`, and `= =` receive the same broad syntax scopes as their compact spellings. Compatibility-sensitive executable compounds remain exact: separated `+ +`, `- -`, `^ ^`, `~ -`, `~ ~`, and `/ /` are deliberately not colored as `++`, `--`, `^^`, `~-`, `~~`, or `//`. TextMate coloring is intentionally only a lexical approximation; semantic validity and diagnostics remain native-backed through the compiler/LSP.

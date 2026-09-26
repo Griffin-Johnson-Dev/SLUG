@@ -8,6 +8,15 @@ from .tokens import Token
 _MULTI = (
     "<:.", "::=", "!==", "===", "<:", ":=", "==", "!=", "<=", ">=", "++", "--", "^^", "~-", "~~", "//",
 )
+
+# These structural/comparison spellings are whitespace-transparent in SLUG 1.0.
+# Their separated character forms were not independently valid v1 programs, so accepting
+# whitespace inside them repairs the non-semantic-whitespace contract without changing
+# an already-valid 1.0.0 program.  By contrast, ++, --, ^^, ~-, ~~ and // remain
+# lexically atomic when contiguous: their component punctuation can itself form valid
+# expressions/statements, so greedily fusing a separated spelling would reinterpret
+# already-valid 1.0 source (for example `1 2 3 + +`).
+_WS_MULTI = ("<:.", "::=", "!==", "===", "<:", ":=", "==", "!=", "<=", ">=")
 _SINGLE = set("{}[](),:;.#~@!?+-*/%^=<>$|`")
 
 
@@ -47,8 +56,39 @@ def lex(source: str) -> list[Token]:
     line = 1
     col = 1
 
-    def emit(kind: str, text: str, start: int, start_line: int, start_col: int, preserve: bool = False) -> None:
-        out.append(Token(kind, text, start, start + len(text), start_line, start_col, preserve))
+    def emit(kind: str, text: str, start: int, start_line: int, start_col: int, preserve: bool = False, end: int | None = None) -> None:
+        out.append(Token(kind, text, start, start + len(text) if end is None else end, start_line, start_col, preserve))
+
+    def match_multi(pos: int) -> tuple[str, int] | None:
+        """Match v1 multi-character punctuation without reinterpreting old source.
+
+        Exact contiguous spellings always win, preserving the 1.0 lexical contract for
+        compound executable operators such as ``++`` and ``//``.  A deliberately
+        limited set of structural/comparison spellings may additionally contain
+        whitespace between characters.  We never preprocess or globally strip source:
+        strings and comments retain their physical boundaries and comments are barriers.
+        """
+        # Preserve every exact 1.0.0 multi-character token first.
+        for op in _MULTI:
+            if source.startswith(op, pos):
+                return op, pos + len(op)
+
+        # Repair whitespace transparency only where doing so cannot consume an already
+        # valid separated operator sequence.
+        for op in _WS_MULTI:
+            j = pos
+            ok = True
+            for k, want in enumerate(op):
+                if k:
+                    while j < n and source[j].isspace():
+                        j += 1
+                if j >= n or source[j] != want:
+                    ok = False
+                    break
+                j += 1
+            if ok:
+                return op, j
+        return None
 
     while i < n:
         ch = source[i]
@@ -241,11 +281,17 @@ def lex(source: str) -> list[Token]:
                 col += 1
             continue
 
-        matched = next((op for op in _MULTI if source.startswith(op, i)), None)
+        matched = match_multi(i)
         if matched:
-            emit("OP", matched, start, sl, sc)
-            i += len(matched)
-            col += len(matched)
+            op, raw_end = matched
+            emit("OP", op, start, sl, sc, end=raw_end)
+            raw = source[i:raw_end]
+            if "\n" in raw:
+                line += raw.count("\n")
+                col = len(raw.rsplit("\n", 1)[-1]) + 1
+            else:
+                col += len(raw)
+            i = raw_end
             continue
 
         if ch in _SINGLE:

@@ -27,6 +27,44 @@ if ($LASTEXITCODE -ne 0) { throw 'Windows clang-cl/MSVC-style bootstrap converge
 
 # The full conformance/hardening gate uses the LLVM/GNU-style driver so ASan/UBSan
 # and the existing differential build harness can use their normal flags.
+#
+# LLVM on Windows commonly links AddressSanitizer dynamically.  The link can
+# succeed while the resulting test executable later exits with STATUS_DLL_NOT_FOUND
+# unless compiler-rt's DLL directory is on PATH.  Discover it from the active LLVM
+# installation rather than assuming one version-specific layout.
+$OriginalPath=$env:PATH
+$RuntimeDirs = New-Object System.Collections.Generic.List[string]
+try {
+    $ClangCommand = Get-Command $FullCC -ErrorAction Stop
+    $ClangExe = $ClangCommand.Source
+    if (-not $ClangExe) { $ClangExe = $ClangCommand.Path }
+    $ClangBin = Split-Path -Parent $ClangExe
+    $LlvmRoot = Split-Path -Parent $ClangBin
+    $ClangRuntimeDir = ((& $FullCC --print-runtime-dir 2>&1) | Out-String).Trim()
+    $ClangResourceDir = ((& $FullCC --print-resource-dir 2>&1) | Out-String).Trim()
+    $Roots = @($ClangRuntimeDir, (Join-Path $ClangResourceDir 'lib\windows'), (Join-Path $ClangResourceDir 'lib'), $ClangResourceDir, (Join-Path $LlvmRoot 'bin'), (Join-Path $LlvmRoot 'lib\clang'))
+    $Seen = @{}
+    foreach ($R in $Roots) {
+        if (-not $R -or -not (Test-Path -LiteralPath $R)) { continue }
+        try {
+            $Dlls = @(Get-ChildItem -LiteralPath $R -Filter 'clang_rt*.dll' -File -ErrorAction SilentlyContinue)
+            $Dlls += @(Get-ChildItem -LiteralPath $R -Filter 'clang_rt*.dll' -File -Recurse -ErrorAction SilentlyContinue)
+            foreach ($Dll in $Dlls) {
+                $Dir = $Dll.DirectoryName
+                $Key = $Dir.ToLowerInvariant()
+                if (-not $Seen.ContainsKey($Key)) { $Seen[$Key]=$true; $RuntimeDirs.Add($Dir) }
+            }
+        } catch { }
+    }
+    if ($RuntimeDirs.Count -gt 0) {
+        $env:PATH = (($RuntimeDirs | Sort-Object -Unique) -join [IO.Path]::PathSeparator) + [IO.Path]::PathSeparator + $OriginalPath
+        Write-Host 'Compiler-rt runtime directories added to PATH for sanitizer execution:'
+        foreach ($Dir in ($RuntimeDirs | Sort-Object -Unique)) { Write-Host "  $Dir" }
+    }
+} catch {
+    Write-Warning "Unable to pre-discover compiler-rt DLL directories: $($_.Exception.Message)"
+}
+
 $OldCC=$env:CC
 try {
     $env:CC=$FullCC
@@ -34,20 +72,32 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows full release gate failed' }
 } finally {
     $env:CC=$OldCC
+    $env:PATH=$OriginalPath
 }
 $ReportDir=Split-Path -Parent $Report
 if ($ReportDir) { New-Item -ItemType Directory -Force -Path $ReportDir | Out-Null }
 $InstallCCVersion = ((& $InstallCC --version 2>&1) | Out-String).Trim()
 $FullCCVersion = ((& $FullCC --version 2>&1) | Out-String).Trim()
 $Manifest = Join-Path $Root 'SOURCE_SHA256SUMS.txt'
+$OsDescription=$null
+try {
+    $OsInfo=Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+    if ($OsInfo -and $OsInfo.Caption) { $OsDescription=$OsInfo.Caption }
+} catch { }
+if (-not $OsDescription) { $OsDescription=[Environment]::OSVersion.VersionString }
+$Architecture=$env:PROCESSOR_ARCHITEW6432
+if (-not $Architecture) { $Architecture=$env:PROCESSOR_ARCHITECTURE }
+if (-not $Architecture) { $Architecture='unknown' }
+
 $Record = [ordered]@{
     schema = 1
     status = 'PASS'
     certified_at_utc = [DateTime]::UtcNow.ToString('o')
     compiler_version = (Get-Content -Raw (Join-Path $Root 'VERSION')).Trim()
     language_version = (Get-Content -Raw (Join-Path $Root 'LANGUAGE_VERSION')).Trim()
-    os = [System.Runtime.InteropServices.RuntimeInformation]::OSDescription
-    architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    os = $OsDescription
+    architecture = $Architecture
+    powershell_version = $PSVersionTable.PSVersion.ToString()
     install_compiler = $InstallCC
     install_compiler_version = $InstallCCVersion
     full_gate_compiler = $FullCC

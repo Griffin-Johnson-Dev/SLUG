@@ -190,7 +190,7 @@
 
 ##! Public help.
 ~pp {
-    co['SLUG compiler 1.0.0 — language 1.0'];
+    co['SLUG compiler 1.0.1 — language 1.0'];
     co['usage: slug <command> [options]'];
     co['  slug check [file] [--diagnostic-format human|json]'];
     co['  slug build [file] [-o <output>] [--cc <compiler>] [--keep-c] [--diagnostic-format human|json]'];
@@ -354,7 +354,7 @@
 ##! Stable machine-readable tooling capability handshake.
 ~qa a {
     ?ln[a]!=1{pd['usage: slug tooling-info'];}
-    co['\{"schema":1,"compiler_version":"1.0.0","language_version":"1.0","cli_contract":1,"manifest_schema":1,"diagnostic_schema":1,"capabilities":\{"fmt":true,"crush":true,"expand":true,"json_diagnostics":true,"project_discovery":true,"local_dependencies":true,"stdin_overlay":true,"failure_locator":true,"semantic_provenance":true,"lexical_provenance":true,"lsp":true\}\}'];
+    co['\{"schema":1,"compiler_version":"1.0.1","language_version":"1.0","cli_contract":1,"manifest_schema":1,"diagnostic_schema":1,"capabilities":\{"fmt":true,"crush":true,"expand":true,"json_diagnostics":true,"project_discovery":true,"local_dependencies":true,"stdin_overlay":true,"failure_locator":true,"semantic_provenance":true,"lexical_provenance":true,"lsp":true\}\}'];
     rv;
 }
 
@@ -428,8 +428,8 @@
 ~py a {
     n:=ln[a];?n==0{pp[];rv;}
     c:=a[0];
-    ?c=='--version' { ?n!=1{pd['usage: slug --version'];}co['1.0.0'];rv; }
-    ?c=='version' { ?n!=1{pd['usage: slug --version'];}co['1.0.0'];rv; }
+    ?c=='--version' { ?n!=1{pd['usage: slug --version'];}co['1.0.1'];rv; }
+    ?c=='version' { ?n!=1{pd['usage: slug --version'];}co['1.0.1'];rv; }
     ?c=='--language-version' { ?n!=1{pd['usage: slug --language-version'];}co['1.0'];rv; }
     ?c=='--help' { ?n!=1{pd['usage: slug --help'];}pp[];rv; }
     ?c=='help' { ?n!=1{pd['usage: slug help'];}pp[];rv; }

@@ -7,7 +7,7 @@ const path = require('path');
 const { fileURLToPath } = require('url');
 const { execFile } = require('child_process');
 
-const SERVER_VERSION = '1.0.0';
+const SERVER_VERSION = '1.0.1';
 
 function parseArgs(argv) {
   let slug = process.env.SLUG_BIN || 'slug';

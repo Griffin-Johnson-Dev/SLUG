@@ -3,10 +3,10 @@
 SLUG is a compact, compiled programming language built around dense syntax, deterministic ambiguity resolution, RPN arithmetic, explicit module identities, and a self-hosted native compiler.
 
 **Language contract:** 1.0  
-**Compiler:** 1.0.0 (untagged final candidate until all platform gates are certified)  
+**Compiler:** 1.0.1  
 **License:** Apache-2.0
 
-The v1 language design is frozen. The compiler is self-hosted, converges to a byte-identical native C fixed point, and provides failure-only native provenance for lexical, parse/structural, and semantic diagnostics without adding source-position bookkeeping to successful ambiguity parsing.
+The v1 language design is frozen. Compiler 1.0.1 is a patch implementation of language contract 1.0: it preserves the 1.0 syntax/semantics while repairing the whitespace-invariance bug found after the 1.0.0 release. The compiler remains self-hosted, converges to a byte-identical native C fixed point, and provides failure-only native provenance for lexical, parse/structural, and semantic diagnostics without adding source-position bookkeeping to successful ambiguity parsing.
 
 ## What is here
 
@@ -63,7 +63,7 @@ See `examples/README.md` for more v1 examples.
 
 ## Editor support
 
-The VS Code client in `tooling/vscode/` is intentionally thin. Diagnostics, formatting, project discovery, relative imports, and `@dep/*` resolution remain native-backed through `slug-lsp`.
+The public VS Code extension is **SLUG Lang DevKit** (`griffinjohnson.slug-devkit`). The client in `tooling/vscode/` is intentionally thin. Diagnostics, formatting, project discovery, relative imports, and `@dep/*` resolution remain native-backed through `slug-lsp`.
 
 Diagnostics use failure-only provenance: successful ambiguity parsing is not burdened with position bookkeeping. The editor receives substantiated native ranges for lexical, parse/structural, and semantic failures.
 
@@ -89,4 +89,4 @@ Recovery checkpoints and pre-v1 examples exist for provenance only.
 
 ## Release status
 
-The tree is frozen as the untagged `1.0.0` final candidate. The public tag is withheld until the exact clean archive passes bootstrap convergence, conformance, tooling/LSP/editor gates, adversarial tests, metadata verification, release-manifest verification, and every platform certification claimed for 1.0.0. No source edit is permitted between the final platform PASS records and the tag.
+SLUG `1.0.0` is the immutable first stable release and remains available under its exact certified tag/artifacts. This tree is the `1.0.1` patch line for language contract `1.0`. Patch releases must pass the same bootstrap, conformance, tooling/LSP/editor, adversarial, metadata, hardening, and claimed-platform certification gates before publication.

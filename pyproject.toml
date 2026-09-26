@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sluglang"
-version = "1.0.0"
+version = "1.0.1"
 description = "Reference/bootstrap tooling for the self-hosted SLUG programming language"
 readme = "README.md"
 license = {file = "LICENSE"}

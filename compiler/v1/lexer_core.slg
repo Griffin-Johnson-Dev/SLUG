@@ -79,16 +79,34 @@ _lexloc_ := nn;
     }
     rv o;
 }
+##! Match a hard multi-character punctuation spelling while ignoring only
+##! whitespace between its characters. Source is never rewritten: strings/comments
+##! retain their lexical boundaries, and comments are hard barriers.
+~ow s x p {
+    j:=x;k:=0;n:=ln[s];m:=ln[p];
+    wl?k<m{
+        ?k>0{wl?j<n{?ws[s[j]]{j=j1+;cl}bl}}
+        ?j>=n{rv nn;}
+        ?s[j]!=p[k]{rv nn;}
+        j=j1+;k=k1+;
+    }
+    rv j;
+}
 ~mo s x {
+    ##! Preserve exact v1.0.0 compound tokens first. Some repeated executable
+    ##! operators have valid separated meanings, so whitespace must not fuse them.
     o := ['<:.', '::=', '!==', '===', '<:', ':=', '==', '!=', '<=', '>=', '++', '--', '^^', '~-', '~~', '//'];
     fl i o {
-        a := sw[s, x, i];
-        ?a {
-            rv i;
-        }
+        ?sw[s,x,i] { rv ['t':i,'e':x ln[i] +]; }
     }
-    z := nn;
-    rv z;
+    ##! Structural/comparison composites whose separated forms were not independently
+    ##! valid may span whitespace, repairing the v1 non-semantic-whitespace contract.
+    w := ['<:.', '::=', '!==', '===', '<:', ':=', '==', '!=', '<=', '>='];
+    fl i w {
+        e := ow[s,x,i];
+        ?e!=nn { rv ['t':i,'e':e]; }
+    }
+    rv nn;
 }
 ~tk k t s e l c p {
     rv ['k': k, 't': t, 's': s, 'e': e, 'l': l, 'c': c, 'p': p];
@@ -320,15 +338,19 @@ _lexloc_ := nn;
             c = c 1 +;
             cl
         }
-        x := mo[s, i];
-        ?x != nn {
-            _len_ := ln[x];
-            j := i _len_ +;
+        _mm_ := mo[s, i];
+        ?_mm_ != nn {
+            x := _mm_['t'];
+            j := _mm_['e'];
             _tok_ := tk['OP', x, a, j, b, d, 0];
             vp[o, _tok_];
+            _raw_:=s[i:j];_ri_:=0;_rn_:=ln[_raw_];
+            wl?_ri_<_rn_{
+                if ?_raw_[_ri_]=='\n'{l=l1+;c=1;}
+                ee{c=c1+;}
+                _ri_=_ri_1+;
+            }
             i = j;
-            _len_ := ln[x];
-            c = c _len_ +;
             cl
         }
         ?in[h, '\{\}[](),:;.#~@!?+-*/%^=<>$|`'] {

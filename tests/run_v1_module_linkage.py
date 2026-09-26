@@ -35,7 +35,7 @@ def write_case(root: Path, files: dict[str, str]) -> None:
 
 
 # (name, files, command, expected stdout).  expected stdout=None means compile-time reject.
-BASE_CASE_COUNT = 21
+BASE_CASE_COUNT = 23
 
 CASES: list[tuple[str, dict[str, str], str, str | None]] = [
     ("alias-call", {"lib.slg": "~tw x{rv x 2 *}\n", "main.slg": ">'lib.slg':m\nco[m.tw[20]]\n"}, "run", "40\n"),
@@ -47,6 +47,8 @@ CASES: list[tuple[str, dict[str, str], str, str | None]] = [
     ("active-namespace", {"lib.slg": "~tw x{rv x 2 *}\n", "main.slg": ">'lib.slg':MA\n<:MA\nco[tw[3]]\n<:.\n"}, "run", "6\n"),
     ("active-namespace-state", {"state.slg": "+:x:=1\n~gt{rv x}\n", "main.slg": ">'state.slg':ST\n<:ST\nco[x]\nx=5\nco[x]\n<:.\nco[ST.gt[]]\n"}, "run", "1\n5\n5\n"),
     ("active-namespace-class", {"obj.slg": "#AB{..x:=4 ~~mk{rv ..x 1 +}}\n", "main.slg": ">'obj.slg':MA\n<:MA\nco[AB.x]\nco[AB.mk[]]\n<:.\n"}, "run", "4\n5\n"),
+    ("active-namespace-whitespace", {"lib.slg": "~tw x{rv x 2 *}\n", "main.slg": ">'lib.slg':MA\n< : M A\nc o[t w[3]]\n< : .\n"}, "run", "6\n"),
+    ("hard-punctuation-whitespace", {"state.slg": "+:x : = 1\n~gt{r v x}\n", "main.slg": ">'state.slg':ST\na : = S T.x\n? a = = 1 { c o[2] }\n"}, "run", "2\n"),
     ("alias-shapes", {"lib.slg": "~tw x{rv x 2 *}\n", "main.slg": ">'lib.slg':m\n>'lib.slg':MA\n>'lib.slg':_ma_\nco[m.tw[1]]\nco[MA.tw[2]]\nco[_ma_.tw[3]]\n"}, "run", "2\n4\n6\n"),
     ("nested-direct", {"base.slg": "~ad x{rv x 1 +}\n", "calc.slg": ">'base.slg'\n~tw x{rv ad[x] 2 *}\n", "main.slg": ">'calc.slg':m\nco[m.tw[20]]\n"}, "run", "42\n"),
     ("nested-alias", {"base.slg": "~ad x{rv x 1 +}\n", "calc.slg": ">'base.slg':b\n~tw x{rv b.ad[x] 2 *}\n", "main.slg": ">'calc.slg':m\nco[m.tw[20]]\n"}, "run", "42\n"),

@@ -25,6 +25,7 @@ CASES = [
     "## comment",
     "##! preserve",
     "a## tail\nb",
+    "a : = 1 ## c i : = stays comment\nb : = 2",
     "#* outer *#a",
     "#*! keep #* nested *# tail *#a",
     "#* a\nb *#c",
@@ -34,12 +35,15 @@ CASES = [
     r"'x{1 2 +}y'",
     r"'x{cv['s','{ok}']}y'",
     r"'x{1#* { ignored } *#2+}y'",
+    "': = c i / / # # # * remains string'",
     "_x_ _Xx_ _next_",
     "_1_ _currentIndex_ _a1B2_",
     "_left__right_",
     "_a_b_c_",  # retired spelling shape now tokenizes as _a_, b, _c_
     ". .23 23. 23.4 123",
     "<:. ::= !== === <: := == != <= >= ++ -- ^^ ~- ~~ //",
+    "< : . : : = ! = = = = = < : : = = = ! = < = > = + + - - ^ ^ ~ - ~ ~ / /",
+    "<\n:\n. :\n:\n= !\n=\n= =\n=\n= <\n: :\n= =\n= !\n= <\n= >\n= +\n+ -\n- ^\n^ ~\n- ~\n~ /\n/",
     "{}[](),:;.#~@!?+-*/%^=<>$|`",
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
 ]
