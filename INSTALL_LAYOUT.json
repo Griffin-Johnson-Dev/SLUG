@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "language_version": "1.0",
+  "compiler_executable": "bin/slug",
+  "runtime_support": "lib/slug/1.0/runtime_stage2.c",
+  "shared_root": "share/slug/1.0",
+  "public_contract": "share/slug/1.0/PUBLIC_CONTRACT.json",
+  "standard_registry": "share/slug/1.0/std/registry.json",
+  "project_convention": {
+    "source_root": "src",
+    "conventional_entry": "src/main.slg",
+    "build_root": "build",
+    "manifest_required": false,
+    "entry_must_be_explicit": false,
+    "source_import_resolution": "relative-to-importing-file",
+    "standard_module_resolution": "compiler-distribution-reserved-uri",
+    "manifest_name": "slug.json",
+    "manifest_schema": 1,
+    "project_command_discovery": "upward-from-current-directory",
+    "explicit_source_manifest_discovery": "upward-from-source-file",
+    "dependency_uri_prefix": "@dep/",
+    "dependency_resolution": "root-manifest-local-relative-root-exact-source",
+    "network_dependency_resolution": false,
+    "implicit_source_suffix": false
+  },
+  "lsp_server": "share/slug/1.0/tooling/slug-lsp.js",
+  "lsp_launcher": "bin/slug-lsp",
+  "vscode_extension": "share/slug/1.0/tooling/vscode/slug-language.vsix",
+  "license": "share/slug/1.0/LICENSE",
+  "security": "share/slug/1.0/SECURITY.md",
+  "readme": "share/slug/1.0/README.md",
+  "examples": "share/slug/1.0/examples"
+}

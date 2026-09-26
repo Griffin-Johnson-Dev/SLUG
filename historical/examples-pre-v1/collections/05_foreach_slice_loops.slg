@@ -1,0 +1,11 @@
+//! Collections 05 — foreach and sliced iterable loops.
+a:=[1,2,3,4,5]
+s:=0
+flia{s=si+}
+cos;
+s=0
+flia1$4{s=si+}
+cos;
+s=0
+flia0$5$2{s=si+}
+cos

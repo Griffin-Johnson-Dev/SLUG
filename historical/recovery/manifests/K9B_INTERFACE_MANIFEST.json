@@ -1,0 +1,12 @@
+{
+  "checkpoint": "K9B",
+  "language_contract": "1.0",
+  "cli_contract": 1,
+  "canonical_seed_sha256": "6fe008c32b9b3538791e69b4b4c84f4bfc1611ab29f1c93c6d97f4113c61e663",
+  "canonical_spec": "docs/SLUG_V1_SPECIFICATION.md",
+  "cli_spec": "docs/SLUG_PUBLIC_CLI_V1.md",
+  "standard_modules": "docs/SLUG_V1_STANDARD_MODULES.md",
+  "machine_contract": "PUBLIC_CONTRACT.json",
+  "implementation_status": "contract-frozen; native public CLI convergence pending",
+  "compiler_semantics_changed": false
+}

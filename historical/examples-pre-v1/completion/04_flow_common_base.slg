@@ -1,0 +1,6 @@
+//! v0.1.5 flow typing: sibling paths preserve the nearest common class base in MIR.
+#BA{}
+#CH<BA{}
+a:=BA[]
+?1{a=CH[]}ee{a=BA[]}
+co[a]

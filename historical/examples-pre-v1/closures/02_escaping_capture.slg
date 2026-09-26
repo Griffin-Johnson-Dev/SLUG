@@ -1,0 +1,11 @@
+//! Escaping closure keeps the captured lexical binding alive and mutable.
+~mk{
+    a:=A$
+    rv lb{
+        a=a1+
+        rva
+    }
+}
+f:=mk
+co!f[]
+co!f[]

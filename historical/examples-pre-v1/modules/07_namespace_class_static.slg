@@ -1,0 +1,9 @@
+//! Explicit and active-namespace module -> class -> static traversal.
+>'lib/namespace':IM
+co IM.mk[A$]
+co IM.AB.mk[]
+co IM.AB.x
+<:IM
+co mkB$
+co AB.mk[]
+co AB.x

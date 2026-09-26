@@ -1,0 +1,3 @@
+##! Named two-character function and return.
+~sq x {rv x x *}
+co[sq[9]]

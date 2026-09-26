@@ -1,0 +1,9 @@
+//! Collections 01 — lists, negative indices, and slices.
+a:=[A$,B$,C$,D$]
+coa
+co[a[0]]
+co[a[1-]]
+co[a[1:3]]
+co[a[:2]]
+co[a[2:]]
+co[a[::1-]]

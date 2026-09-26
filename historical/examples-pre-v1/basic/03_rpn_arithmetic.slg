@@ -1,0 +1,6 @@
+//! BASIC 03 — RPN removes precedence punctuation
+a := 2;
+b := 3;
+c := 4;
+d := a b c * +;
+co d;

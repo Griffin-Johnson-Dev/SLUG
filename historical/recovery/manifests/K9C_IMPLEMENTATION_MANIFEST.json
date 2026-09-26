@@ -1,0 +1,13 @@
+{
+  "checkpoint": "K9C",
+  "language_version": "1.0",
+  "compiler_version": "0.9.0-dev+k9c",
+  "cli_contract_version": 1,
+  "canonical_seed_sha256": "34c03e95259d7992cd4a547b08b1d2cd7b218ac4eecffe9c89d15465e5226088",
+  "canonical_seed_bytes": 2762878,
+  "native_cli_contract": "26/26",
+  "exception_control_hardening": "10/10",
+  "audited_v1_selfhost_conformance": "32/32",
+  "native_hardening": "8/8",
+  "self_host_fixed_point": "byte-identical"
+}

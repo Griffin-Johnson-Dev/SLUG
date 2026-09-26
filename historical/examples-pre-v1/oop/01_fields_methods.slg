@@ -1,0 +1,10 @@
+//! OOP 01 — constructor fields and instance methods.
+#PT x y {
+    .x:=x
+    .y:=y
+    ~sm {rv .x .y +}
+}
+a:=PT[A$,B$]
+co[a.x]
+co[a.y]
+co[a.sm[]]

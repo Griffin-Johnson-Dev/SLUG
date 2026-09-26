@@ -1,0 +1,4 @@
+##! Native v1 structural-semantic differential probe.
+>'@std/sys':SY
+>'semantic_core.slg'
+a:=SY.av[];n:=ln[a];?n<=0{er'usage: v1-semantic <source>';}co[vc[a[0]]];

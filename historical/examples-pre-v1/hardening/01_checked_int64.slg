@@ -1,0 +1,7 @@
+//! v0.1 hardening — integer operations retain full int64 precision and casts enforce widths.
+a:=7FFFFFFFFFFFFFFE$1+
+co a
+b:=7F$
+co@i8b
+c:=FF$
+co@u8c

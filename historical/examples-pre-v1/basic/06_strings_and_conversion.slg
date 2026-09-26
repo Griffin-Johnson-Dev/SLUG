@@ -1,0 +1,6 @@
+//! BASIC 06 — strings concatenate through + and nonstrings stringify automatically
+a := A$;
+b := 'hex A is decimal ';
+c := b a +;
+co c;
+co @s a;

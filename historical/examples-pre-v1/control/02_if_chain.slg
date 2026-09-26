@@ -1,0 +1,6 @@
+//! if/ei/ee plus block-local := shadowing.
+a:=2
+if?a>3{co'gt'}ei?a==2{co'eq'}ee{co'lt'}
+a:=A$
+?1{a:=B$ coa}
+coa

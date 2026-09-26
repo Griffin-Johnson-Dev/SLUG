@@ -1,0 +1,4 @@
+//! Counted repeat with no exposed counter and an early break.
+a:=0
+flA${a++?a==3{bl}}
+coa

@@ -1,0 +1,6 @@
+//! Return value is preserved while finally executes before the function returns.
+~ab{
+    tr{rvA$}
+    fn{co'fin'}
+}
+coab

@@ -1,0 +1,12 @@
+{
+  "checkpoint": "K9A",
+  "date": "2026-09-24",
+  "purpose": "self-contained clean recovery/bootstrap base with literal interning and reduced-memory bootstrap profile",
+  "canonical_seed_c_sha256": "6fe008c32b9b3538791e69b4b4c84f4bfc1611ab29f1c93c6d97f4113c61e663",
+  "canonical_seed_c_bytes": 2584064,
+  "gc_interval_for_proof": 262144,
+  "bootstrap_entry": "compiler/stage2/app.slg",
+  "historical_delta_dependency": false,
+  "recovery_j_required": false,
+  "parent_checkpoint": "K9"
+}

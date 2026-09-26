@@ -1,0 +1,3 @@
+//! Named function arity forces the 23 digit stream into arguments 2 and 3.
+~ab@i x@i y@i {rvxy+}
+coab23

@@ -1,0 +1,3 @@
+//! Imported modules may themselves import another module.
+>'lib/pipeline'
+co bb[A$]

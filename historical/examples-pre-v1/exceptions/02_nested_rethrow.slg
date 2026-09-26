@@ -1,0 +1,8 @@
+//! Catch may raise a replacement error; both finally scopes still execute.
+tr{
+    tr{er'x'}
+    cae{er'y'}
+    fn{co'inner'}
+}
+cae{coe}
+fn{co'outer'}

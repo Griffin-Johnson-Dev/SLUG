@@ -1,0 +1,176 @@
+//! SLUG implicit gauntlet v2 — punctuation is guilty until proven necessary.
+/*! This preserved comment survives .slg -> .slgc, but never native code. */
+/*
+Ordinary commentary disappears under crush. Whitespace and newlines are intentionally useless to the parser:
+this file is spaced only so a human can inspect it. The parser receives the same token stream it would receive
+if every line below were welded together. A semicolon appears only where deleting that exact character changes
+or destroys the unique AST. This is meant to stress symbol knowledge, callable arity, assignable-target context,
+hex/class overlap, RPN stack shape, type-width recognition, nested assignment, and adjacent statement inference.
+*/
+
+#AB x@i=A$ {rvx}
+#CD<AB x {a:=ABA$ rva}
+-#EF x {a:=@[x,A$,B$] rva}
+#AF x {rvx}
+#BC x {rvx}
+#DE x {rvx}
+#FA x {rvx}
+
+~ab@i x@i y@i {z:=xy+ rvz}
+~de@i x@i y@i {z:=xy* rvz}
+~fg@i x@i y@i {z:=xy- rvz}
+~zz@i a@i b@i {c:=ab+ rvc}
+
+-~xy a=1 b=2 {
+    c:=zzab
+    d:=[a,b,c]
+    e:=@[a,b,c]
+    f:=nn
+    rv c d e f
+}
+
+~~uv@s a {rv@sa}
+~qx f g {rv!f[g]}
+
+~mn a {
+    b:=in[a,[a]]
+    c:=iv[a,[a]]
+    d:=ln[[a,a]]
+    e:=sl[[a,a]]
+    f:=ci''
+    rv b c d e f
+}
+
+~hx x y {
+    a:=abxy
+    b:=dexy
+    c:=fgxy
+    d:=AFF$ e:=BCA$ f:=DEA$ g:=FAA$
+    rv a b c d e f g
+}
+
+coin=F$
+sliv=A$
+
+a:=b:=d:=3
+co[q:=C$]
+
+a:=123+
+b:=123*+
+d:=1234*+
+e:=1234+*
+f:=23-^
+g:=93-
+h:=00^
+j:=52/ k:=@i52/
+m:=52%
+r:=123%-
+t:=123/^
+
+u:=@u8FF$ w:=@i32FF$ x:=@f32A$ y:=@s10 z:=@b0
+p::=F$
+_xY_::=10
+_n_:=nn
+
+i:=9 i++ i--
+a:='value='y+
+abcdef='same'
+g:=.5 h:=5. j:=gh+
+
+k:=12345**+*
+l:=12345*+*+
+
+coc coo coi con cos col coi cov
+coa cob cod coq
+coa cob cod coe cof cog coh coj cok com cor cot
+cou cow cox coy coz cop co_xY_ co_n_ coi coa
+coa cob coc cod coe cof coj cok col
+
+// v0.0.6 control-flow gauntlet: ? owns Boolean +/ while comparison operands still use RPN.
+a:=1 b:=0
+co?a+b co?a/b co?!b
+co?a==1 co?a!=b co?a>b
+
+// Short-circuiting must suppress the assignment expressions on the right.
+s:=0
+?b+s:=1{co'bad'} cos
+?a/s:=2{co'or'} cos
+
+// Branch chains, lexical shadowing, while, repeat, break, continue, and range scope.
+x:=2
+if?x>3{co'gt'}ei?x==2{co'eq'}ee{co'lt'}
+x:=A$
+?1{x:=B$ cox}
+cox
+w:=3 wl?w{cow w--}
+r:=0 fl3{r++} cor
+r:=0 flA${r++?r==3{bl}} cor
+s:=0 fli0$5{?i==2{cl}s=si+} cos
+
+// v0.0.7 collection gauntlet: mutable/frozen collections, postfix access, membership, aliasing,
+// Unicode code-point strings, map := creation, and collection-backed loop forms.
+_v_:=[D$,A$,C$,B$]
+co_v_
+co[_v_[1-]] co[_v_[1:3]] co[_v_[::1-]]
+co[ln[_v_]] co[inC$_v_] co[sl[_v_]]
+_w_:=_v_ _v_[0]=F$ co_w_
+_m_:=[:] _m_['x']:=A$
+co[_m_['x']] co[in'x'_m_] co[ivA$_m_] co[ln[_m_]] co[_m_['y']:=B$]
+_f_:=@[1,2] co_f_
+_s_:='🐌ab' co[_s_[0]] co[_s_[1:]] co[ln[_s_]]
+_seq_:=[1,2,3,4,5]
+o:=0 fli_seq_{o=oi+} co[o]
+q:=0 fli_seq_1$4{q=qi+} co[q]
+r:=0 fli_seq_0$5$2{r=ri+} co[r]
+
+// v0.0.8 function gauntlet: default omission, xx, multiple returns, variadics, recursion,
+// and assignment-target context fighting an already-known callable named ab.
+~rt x=1 y=2 {rvxy+}
+~mr x {rvx x1+}
+~vr[x] {rvln[x]}
+~fc x {?x<=1{rv1}rvxfc[x1-]*}
+cort
+cortxxB$
+ab:=mrA$ coa cob
+covr[A$,B$,C$]
+cofc[5]
+
+// v0.0.9 OOP gauntlet: adjacent fields without separators, private/static declarations,
+// inherited construction, override + super dispatch, method multi-return, equality and identity.
+#GH x=1 y=2 {
+    -.x:=x
+    .y:=y
+    -..n:=1
+    -~~pv {rv..n}
+    ~sm {rv.x.y+}
+    ~~ok {rv..pv[]}
+    ~sp {a:=.x b:=.y rvab}
+}
+#IJ<GH x=3 y=4 {
+    ^^[x,y]
+    .z:=xy+
+    ~sm {a:=^^.sm[] rv a .z +}
+}
+_obj_:=IJ[]
+co[_obj_.y]
+co[_obj_.z]
+co[_obj_.sm[]]
+co[GH.ok[]]
+xy:=_obj_.sp[] co x co y
+_obj2_:=IJ[]
+co[?_obj_==_obj2_]
+co[?_obj_===_obj2_]
+
+// v0.0.10 closure/exception gauntlet: bare zero-arity factory call, escaping mutable capture,
+// callable-value defaults/xx, variadic lambda, wrapped errors, catch binding, and finally.
+~mk{
+    a:=A$
+    rv lb{a=a1+ rva}
+}
+_cl_:=mk
+co!_cl_[] co!_cl_[]
+_fn_:=lbx=1y=2{rvxy+}
+co!_fn_[] co!_fn_[xx,B$]
+_vl_:=lb[x]{rvln[x]}
+co!_vl_[1,2,3]
+tr{er'oops'}cae{coe}fn{co'finally'}

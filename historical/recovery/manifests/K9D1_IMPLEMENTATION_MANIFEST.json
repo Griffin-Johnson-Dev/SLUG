@@ -1,0 +1,31 @@
+{
+  "checkpoint": "K9D1",
+  "date": "2026-09-24",
+  "parent": "K9D-ID",
+  "language_version": "1.0",
+  "compiler_version": "0.9.0-dev+k9d1",
+  "cli_contract_version": 1,
+  "purpose": "provider-aware user-module linkage, imported inheritance convergence, and bootstrap performance recovery",
+  "canonical_seed_sha256": "806b91ead33acd82234ea0691968142de68067e368a348ce532cf486de7bbc72",
+  "canonical_seed_bytes": 3076922,
+  "self_host_fixed_point": "byte-identical native generations",
+  "module_linkage": "32/32",
+  "module_linkage_base": "20/20",
+  "imported_inheritance": "12/12",
+  "identifier_migration": "8/8",
+  "exception_control_hardening": "10/10",
+  "native_cli_contract": "26/26",
+  "lexer_differential": "37/37",
+  "expression_differential": "125/125 valid; 11/11 rejects",
+  "program_differential": "129/129 valid; 28/28 rejects",
+  "semantic_differential": "26/26 valid; 31/31 rejects",
+  "audited_selfhost_conformance": "32/32",
+  "native_hardening": "8/8 O0/O3 + ASan/UBSan",
+  "install_layout_gate": "10/10",
+  "performance_recovery": {
+    "root_cause": "always-on module/namespace parser probes plus duplicate explicit @std alias parse path",
+    "fixed_point_emit_seconds": 53.27,
+    "fixed_point_peak_rss_kib": 679764
+  },
+  "fresh_bootstrap_proof_required": "canonical seed -> identical regenerated C -> identical next generation from clean extraction"
+}

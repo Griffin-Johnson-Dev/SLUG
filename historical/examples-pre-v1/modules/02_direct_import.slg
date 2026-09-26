@@ -1,0 +1,6 @@
+//! Direct import exposes public declarations, but not the private helper pr.
+>'lib/math'
+co sq3
+co puA$
+a:=AB[C$]
+co a.gt[]

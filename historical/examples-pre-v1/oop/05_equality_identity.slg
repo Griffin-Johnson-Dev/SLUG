@@ -1,0 +1,10 @@
+//! OOP 05 — object == is structural while === is reference identity.
+#EQ x {.x:=x}
+a:=EQ[1]
+b:=EQ[1]
+c:=a
+co[?a==b]
+co[?a===b]
+co[?a===c]
+b.x=2
+co[?a==b]

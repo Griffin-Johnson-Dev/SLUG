@@ -1,0 +1,8 @@
+//! A closure created by an instance method can retain the current object.
+#ABx{
+    .x:=x
+    ~mk{rv lb{rv.x}}
+}
+a:=AB[A$]
+f:=a.mk[]
+co!f[]

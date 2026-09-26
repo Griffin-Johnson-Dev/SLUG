@@ -1,0 +1,5 @@
+//! v0.1.5 interfaces/traits: required/default behavior becomes real class methods.
+#?IF{~go x=A${rvx}}
+#AA:IF{}
+a:=AA
+co[a.go]

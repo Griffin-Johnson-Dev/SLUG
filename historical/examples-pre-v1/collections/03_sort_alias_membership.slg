@@ -1,0 +1,9 @@
+//! Collections 03 — mutable reference aliasing, sort, membership, and indexed update.
+a:=[3,1,2]
+b:=a
+co[sl[a]]
+cob
+co[in2a]
+co[ln[a]]
+a[0]=9
+cob

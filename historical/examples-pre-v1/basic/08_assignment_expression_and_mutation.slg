@@ -1,0 +1,9 @@
+//! BASIC 08 — := yields a value, nested assignment works, and ++/-- mutate
+a := b := 3;
+co a;
+co b;
+co[c := A$];
+c++;
+co c;
+c--;
+co c;

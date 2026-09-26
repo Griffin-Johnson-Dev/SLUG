@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "language_version": "1.0",
+  "implementation": "host-capability",
+  "modules": {
+    "@std/sys": [
+      "av",
+      "ev",
+      "cw",
+      "pf",
+      "cp",
+      "pc"
+    ],
+    "@std/time": [
+      "tm",
+      "mt",
+      "wt"
+    ],
+    "@std/rand": [
+      "en"
+    ],
+    "@std/fs": [
+      "fr",
+      "ft",
+      "fw",
+      "fa",
+      "fe",
+      "fd",
+      "fm",
+      "md",
+      "rm",
+      "mv",
+      "fo",
+      "hr",
+      "hw",
+      "hs",
+      "hp",
+      "hf",
+      "hc"
+    ],
+    "@std/net": [
+      "so",
+      "cn",
+      "bn",
+      "ls",
+      "ac",
+      "sd",
+      "rc",
+      "sc",
+      "gp"
+    ],
+    "@std/gfx": [
+      "sf",
+      "px",
+      "rf",
+      "dl",
+      "sb",
+      "wn",
+      "wf",
+      "pe",
+      "wx"
+    ],
+    "@std/audio": [
+      "au",
+      "aq",
+      "ax"
+    ],
+    "@std/dev": [
+      "do",
+      "dv",
+      "dr",
+      "dw",
+      "dx"
+    ]
+  },
+  "note": "Reserved @std/* URIs are compiler/runtime-backed in SLUG 1.0; this registry is distribution metadata, not source-module lookup."
+}

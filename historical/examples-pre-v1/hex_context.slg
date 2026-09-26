@@ -1,0 +1,4 @@
+//! ABA$ is a class call here because AB exists and takes one argument.
+#AB x {
+}
+a := AB A$

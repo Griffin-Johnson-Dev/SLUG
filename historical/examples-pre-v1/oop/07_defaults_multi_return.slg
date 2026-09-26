@@ -1,0 +1,15 @@
+//! OOP 07 — constructor defaults plus a method returning multiple values.
+#MR x=1 y=2 {
+    .x:=x
+    .y:=y
+    ~sp {a:=.x b:=.y rvab}
+}
+a:=MR[]
+b:=MR[A$]
+c:=MR[xx,B$]
+co[a.x]
+co[b.y]
+co[c.y]
+xy:=c.sp[]
+co x
+co y

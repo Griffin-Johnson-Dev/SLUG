@@ -1,0 +1,7 @@
+//! Module aliases may be one lowercase, two uppercase, or extended -- never a lowercase pair.
+>'lib/math':m
+>'lib/math':MA
+>'lib/math':_ma_
+co m.sq[A$]
+co MA.sq[B$]
+co _ma_.sq[C$]

@@ -1,0 +1,7 @@
+//! v0.1.2 — closure/captured-cell/list cycle is collectible once its lexical scope ends.
+fl 10${
+    a:=[nn]
+    f:=lb{rva}
+    a[0]:=f
+}
+co'closure cycles reclaimed'

@@ -1,0 +1,19 @@
+##! SLUG v1 semantic-layer facade over the ambiguity-aware program parser.
+##! Keeps program_core's dense q* helper namespace out of later compiler stages.
+>'program_core.slg'
+>'lexer_core.slg':LX
+~wa s {rv pp[s];}
+~wb s {rv pq[s];}
+~wc s {rv pt[s];}
+~wd t {rv pv[t];}
+~we t e {rv pu[t,e];}
+
+##! Stage-2 module-aware parser entry with user alias and direct-class metadata.
+~wf t e u h {rv qy[t,e,u,h];}
+
+##! Failure-only source diagnostic locator.
+~wg t e u h {rv qv[t,e,u,h];}
+
+##! K9J failure-only annotated semantic parse and lexical failure location.
+~wh t e u h {rv rd[t,e,u,h];}
+~wi s {rv LX.lr[s];}

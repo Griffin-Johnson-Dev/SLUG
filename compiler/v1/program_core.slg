@@ -1,0 +1,694 @@
+##! SLUG v1 ambiguity-aware ordinary program/statement parser.
+##! Reconstructed against the frozen v0.1.7.1 Python oracle.
+>'expr_api.slg'
+>'common_api.slg'
+>'vector_api.slg'
+>'signature_api.slg'
+>'function_header.slg'
+
+##! Roughly skip the deliberately small parameter-default subset used by the
+##! declaration signature prepass. Returns p unchanged when the extent is unknown.
+
+
+##! Rough function arity scan used before ordinary expression parsing. A variadic
+##! capture gets a very large explicit-pack ceiling; dense inference remains disabled.
+
+
+##! Layer all named-function arities over the frozen builtin signature table before
+##! any expression candidates are requested. This enables recursion and forward calls.
+~qm c {
+    t:=c['t'];s:=c['s'];i:=0;n:='';r:=nn;_al_:=c['u'];_std_:=c['w'];_reg_:=c['r'];
+    wl?yb[t,i]!='EOF'{
+        ?ya[t,i]=='>'{?yb[t,i1+]=='STRING'{
+            _pth_:=pb[ya[t,i1+]];_q_:=i2+;
+            ?ya[t,_q_]==':'{_ar_:=pr[c,_q_1+];?_ar_!=nn{_hs_:=in[_pth_,_std_];?_hs_{_alias_:=_ar_['n'];_dup_:=in[_alias_,_reg_];?_dup_{er'duplicate module alias';}_al_[_alias_]:=_pth_;_emptyg_:=[:];_emptyc_:=[:];_desc_:=['s':1,'i':_pth_,'f':_std_[_pth_],'g':_emptyg_,'c':_emptyc_];_reg_[_alias_]:=_desc_;}}}
+        }}
+        j:=i;?ya[t,j]=='-'{x:=ya[t,j1+];?x=='~'{j=j1+;}?x=='~~'{j=j1+;}?x=='#'{j=j1+;}}
+        h:=ya[t,j];
+        ?h=='#'{r=qn[c,j];?r['o']{n=r['n'];_ct_:=c['c'];_ct_[n]:=['a':r['a'],'b':r['b'],'h':r['h']];i=r['p'];cl}}
+        _fn_:=0;?h=='~'{_fn_=1;}?h=='~~'{_fn_=1;}
+        ?_fn_{?yb[t,j1+]=='LOWER'{?yb[t,j2+]=='LOWER'{
+            n=ya[t,j1+] ya[t,j2+]+;r=ql[c,j3+];_ar_:=r['a'];_br_:=r['b'];_dr_:=r['d'];s[n]:=['a':_ar_,'b':_br_,'d':_dr_];i=j3+;cl
+        }}}
+        i=i1+;
+    }
+    rv;
+}
+
+##! Precompute lexical active-module namespaces by token position. Namespace
+##! selection is lexical and block-scoped, so parser ambiguity does not carry state.
+~qx c {
+    t:=c['t'];m:=[:];_stack_:=xc[];_depth_:=0;_cur_:=nn;_any_:=0;i:=0;
+    wl?yb[t,i]!='EOF'{
+        ?_cur_!=nn{k:=@s|i|;m[k]:=_cur_;}x:=ya[t,i];
+        ?x=='\{'{xd[_stack_,_cur_];_depth_=_depth_1+;i=i1+;cl}
+        ?x=='\}'{?_depth_>0{_depth_=_depth_1-;_cur_=xa[_stack_,_depth_];}i=i1+;cl}
+        ?x=='<:.'{_cur_=nn;i=i1+;cl}
+        ?x=='<:'{
+            r:=pr[c,i1+];?r==nn{er'invalid module namespace selector';}
+            a:=r['n'];_reg_:=c['r'];_has_:=in[a,_reg_];?!_has_{er'unknown module namespace';}
+            _any_=1;_cur_=a;i=r['p'];cl
+        }
+        i=i1+;
+    }
+    c['n']=m;c['N']=_any_;rv;
+}
+
+##! Program context. User callable signatures are layered in by the declaration prepass.
+~pa s {
+    g:=ua[];
+    c:=ze[s,g];
+    qm[c];qx[c];
+    rv c;
+}
+
+##! Decode the simple quoted strings used by import paths.
+##! Full string escape semantics remain expression-level; import fixtures use plain paths.
+~pb x {
+    n:=ln[x];
+    ?n<2{rv x;}
+    z:=x[1:n1-];
+    rv z;
+}
+
+##! Parse one legal module alias after an import colon. Returns ['n':name,'p':end] or nn.
+~pr c p {
+    t:=c['t'];k:=yb[t,p];
+    ?k=='LOWER'{n:=ya[t,p];e:=p1+;z:=['n':n,'p':e];rv z;}
+    ?k=='EXT'{n:=ya[t,p];e:=p1+;z:=['n':n,'p':e];rv z;}
+    ?k=='UPPER'{e:=p1+;?yb[t,e]=='UPPER'{a:=ya[t,p];b:=ya[t,e];n:=a b +;e=p2+;z:=['n':n,'p':e];rv z;}}
+    rv nn;
+}
+
+##! Parse one class header. p points at '#'. Interfaces are intentionally left to the
+##! later interface layer; audited class inheritance + constructor params are preserved here.
+~qn c p {
+    t:=c['t'];?ya[t,p]!='#'{rv ['o':0,'p':p];}
+    ?yb[t,p1+]!='UPPER'{rv ['o':0,'p':p];}?yb[t,p2+]!='UPPER'{rv ['o':0,'p':p];}
+    n:=ya[t,p1+] ya[t,p2+]+;q:=p3+;h:=nn;
+    ?ya[t,q]=='<'{?yb[t,q1+]=='UPPER'{?yb[t,q2+]=='UPPER'{h=ya[t,q1+] ya[t,q2+]+;q=q3+;}ee{rv ['o':0,'p':p];}}ee{rv ['o':0,'p':p];}}
+    r:=ql[c,q];?r['o']==0{rv ['o':0,'p':p];}
+    ##! Class constructor headers cannot use function-only return contracts or variadic captures.
+    ?r['r']!=nn{rv ['o':0,'p':p];}?r['x']!=nn{rv ['o':0,'p':p];}
+    rv ['o':1,'n':n,'a':r['a'],'b':r['b'],'v':r['v'],'p':r['p'],'h':h];
+}
+
+##! Fingerprint simple statement families; nn means not handled.
+~qd x {
+    k:=x['k'];a:=nn;
+    ?k=='comment'{s:='K(' x['t'] +;s=s ')'+;rv s;}
+    ?k=='import'{s:='P(' x['p'] +;s=s ','+;a=x['a'];?a==nn{s=s '_'+;}ee{s=s a+;}s=s ')'+;rv s;}
+    ?k=='namespace'{s:='NS(';a=x['a'];?a==nn{s=s '_'+;}ee{s=s a+;}s=s ')'+;rv s;}
+    ?k=='break'{rv'BR';}
+    ?k=='continue'{rv'CT';}
+    rv nn;
+}
+~qe x {
+    k:=x['k'];
+    ?k=='return'{s:='R' yg[x['v']]+;rv s;}
+    ?k=='raise'{v:=x['v'];s:='H(';?v==nn{s=s '_'+;}ee{s=s yh[v]+;}s=s ')'+;rv s;}
+    ?k=='try'{
+        s:='TR(';s=s qb[x['b']]+;s=s ','+;n:=x['n'];?n==nn{s=s '_'+;}ee{s=s n+;}
+        s=s ','+;v:=x['c'];?v==nn{s=s '_'+;}ee{s=s qb[v]+;}
+        s=s ','+;v=x['f'];?v==nn{s=s '_'+;}ee{s=s qb[v]+;}s=s ')'+;rv s;
+    }
+    ?k=='while'{s:='WL(';s=s yh[x['c']]+;s=s ','+;s=s qb[x['b']]+;s=s ')'+;rv s;}
+    ?k=='for'{
+        s:='FL(';s=s x['y']+;s=s ','+;n:=x['n'];?n==nn{s=s '_'+;}ee{s=s n+;}
+        s=s ','+;v:=x['q'];?v==nn{s=s '_'+;}ee{s=s yh[v]+;}
+        s=s ','+;v=x['a'];?v==nn{s=s '_'+;}ee{s=s yh[v]+;}
+        s=s ','+;v=x['z'];?v==nn{s=s '_'+;}ee{s=s yh[v]+;}
+        s=s ','+;v=x['d'];?v==nn{s=s '_'+;}ee{s=s yh[v]+;}
+        s=s ','+;s=s qb[x['b']]+;s=s ')'+;rv s;
+    }
+    ?k=='if'{
+        s:='IF(';s=s yh[x['c']]+;s=s ','+;s=s qb[x['b']]+;s=s ',['+;e:=x['e'];n:=xb[e];i:=0;
+        wl?i<n{?i>0{s=s ','+;}r:=xa[e,i];s=s '('+;s=s yh[r['c']]+;s=s ','+;s=s qb[r['b']]+;s=s ')'+;i=i1+;}
+        s=s '],'+;b:=x['x'];?b==nn{s=s '_'+;}ee{s=s qb[b]+;}s=s ')'+;rv s;
+    }
+    rv nn;
+}
+~qf x {
+    k:=x['k'];s:='';a:=xc[];n:=0;i:=0;y:=nn;t:=nn;d:=nn;r:=nn;v:=nn;
+    ?k=='assign'{s:='W(' yg[x['a']]+;s=s ','+;s=s yi[x['y']]+;s=s ','+;s=s yh[x['v']]+;s=s ')'+;rv s;}
+    ?k=='export'{s:='EX(' x['n']+;s=s ','+;s=s x['o']+;s=s ','+;s=s yh[x['v']]+;s=s ')'+;rv s;}
+    ?k=='module-var-assign'{s:='MW(' x['u']+;s=s ','+;s=s x['n']+;s=s ','+;s=s yh[x['v']]+;s=s ')'+;rv s;}
+    ?k=='mutate'{s:='U(' x['o']+;s=s ','+;s=s yh[x['v']]+;s=s ')'+;rv s;}
+    ?k=='expr'{s:='E(' yh[x['v']]+;s=s ')'+;rv s;}
+    ?k=='set-index'{s:='WI(';s=s yh[x['a']]+;s=s ','+;s=s yh[x['v']]+;s=s ')'+;rv s;}
+    ?k=='set-member-stmt'{s:='WM(';s=s yh[x['a']]+;s=s ','+;s=s yh[x['v']]+;s=s ','+;?x['d']{s=s 'D'+;}ee{s=s 'U'+;}s=s ','+;?x['i']{s=s 'I'+;}ee{s=s 'M'+;}s=s ','+;?x['p']{s=s 'P'+;}ee{s=s 'U'+;}s=s ')'+;rv s;}
+    ?k=='super-init'{s:='SU';s=s yg[x['a']]+;rv s;}
+    ?k=='destructor'{s:='DT(';s=s qb[x['v']]+;s=s ')'+;rv s;}
+    ?k=='class'{
+        s='CL(';s=s x['n']+;s=s ','+;?x['p']{s=s 'P'+;}ee{s=s 'U'+;}s=s ',['+;
+        a=x['a'];n=xb[a];i=0;wl?i<n{?i>0{s=s ','+;}y=xa[a,i];s=s 'P('+;s=s y['n']+;s=s ':'+;t=y['t'];?t==nn{s=s '_'+;}ee{s=s t+;}s=s ':'+;d=y['d'];?d==nn{s=s '_'+;}ee{s=s yh[d]+;}s=s ')'+;i=i1+;}
+        s=s '],'+;s=s qb[x['v']]+;s=s ')'+;rv s;
+    }
+    ?k=='function'{
+        s='FN(';s=s x['n']+;s=s ','+;?x['z']{s=s 'S'+;}ee{s=s 'I'+;}s=s ','+;
+        ?x['p']{s=s 'P'+;}ee{s=s 'U'+;}s=s ','+;r=x['r'];
+        ?r==nn{s=s '_'+;}ee{s=s '['+;n=xb[r];i=0;wl?i<n{?i>0{s=s ','+;}s=s xa[r,i]+;i=i1+;}s=s ']'+;}
+        s=s ',['+;a=x['a'];n=xb[a];i=0;wl?i<n{?i>0{s=s ','+;}y=xa[a,i];s=s 'P('+;s=s y['n']+;s=s ':'+;
+            t=y['t'];?t==nn{s=s '_'+;}ee{s=s t+;}s=s ':'+;d=y['d'];?d==nn{s=s '_'+;}ee{s=s yh[d]+;}s=s ')'+;i=i1+;}
+        s=s '],'+;v=x['x'];?v==nn{s=s '_'+;}ee{s=s v+;}s=s ','+;s=s qb[x['v']]+;s=s ')'+;rv s;
+    }
+    rv nn;
+}
+
+##! Statement semantic fingerprint.
+~qa x {
+    s:=qd[x];?s!=nn{rv s;}
+    s=qe[x];?s!=nn{rv s;}
+    s=qf[x];?s!=nn{rv s;}
+    er'unknown v1 statement fingerprint kind';
+}
+
+##! Fingerprint a statement vector.
+~qb a {
+    s:='[';n:=xb[a];i:=0;
+    wl?i<n{?i>0{s=s ','+;}s=s qa[xa[a,i]]+;i=i1+;}
+    s=s ']'+;rv s;
+}
+
+##! Dedupe statement candidates by (end,semantic fingerprint), keeping cheapest score.
+~qc a {
+    o:=xc[];m:=[:];n:=xb[a];i:=0;
+    wl?i<n{
+        c:=xa[a,i];f:=qa[c['e']];k:=@s|c['p']|;k=k ':'+;k=k f+;
+        _qchas_:=in[k,m];?!_qchas_{m[k]:=xb[o];xd[o,c];}
+        ee{j:=m[k];d:=xa[o,j];?c['s']<d['s']{xe[o,j,c];}}
+        i=i1+;
+    }
+    rv o;
+}
+
+##! comments/imports
+~pd c p o {
+    t:=c['t'];
+    ?yb[t,p]=='COMMENT'{z:=['k':'comment','t':ya[t,p],'p':xa[t,p]['p']];yd[o,z,p1+,0];rv;}
+    ?ya[t,p]=='>'{?yb[t,p1+]=='STRING'{q:=p2+;a:=nn;?ya[t,q]==':'{r:=pr[c,q1+];?r!=nn{a=r['n'];q=r['p'];}}z:=['k':'import','p':pb[ya[t,p1+]],'a':a];yd[o,z,q,0];}}
+    ?ya[t,p]=='<:.'{z:=['k':'namespace','a':nn];yd[o,z,p1+,0];rv;}
+    ?ya[t,p]=='<:'{r:=pr[c,p1+];?r!=nn{a:=r['n'];_reg_:=c['r'];_has_:=in[a,_reg_];?_has_{z:=['k':'namespace','a':a];yd[o,z,r['p'],0];rv;}}}
+    ?ya[t,p]=='+'{?ya[t,p1+]==':'{
+        r:=zb[c,p2+];?r!=nn{_ta_:=r['a'];?_ta_!=nn{?xb[_ta_]==1{_op_:=ya[t,r['p']];_ok_:=0;?_op_==':='{_ok_=1;}?_op_=='::='{_ok_=1;}?_ok_{
+            _rhs_:=zc[c,r['p']1+];_rn_:=xb[_rhs_];_ri_:=0;wl?_ri_<_rn_{_rc_:=xa[_rhs_,_ri_];_target_:=xa[_ta_,0];_types_:=r['y'];_tc_:=xa[_types_,0];z:=['k':'export','n':_target_['n'],'t':_tc_,'o':_op_,'v':_rc_['e']];yd[o,z,_rc_['p'],_rc_['s']];_ri_=_ri_1+;}rv;
+        }}}}
+    }}
+    _ci_:=p;_cpr_:=0;?ya[t,_ci_]=='-'{?ya[t,_ci_1+]=='#'{_cpr_=1;_ci_=_ci_1+;}}
+    ?ya[t,_ci_]=='#'{
+        _ch_:=ql[c,_ci_];?_ch_['o']{_cb_:=_ch_['p'];?ya[t,_cb_]=='\{'{?ya[t,_cb_1+]=='\}'{
+            z:=['k':'class','n':_ch_['n'],'a':_ch_['v'],'v':xc[],'p':_cpr_];yd[o,z,_cb_2+,0];rv;
+        }}}
+    }
+    i:=p;_priv_:=0;_stat_:=0;h:='';
+    ?ya[t,i]=='-'{h=ya[t,i1+];_good_:=0;?h=='~'{_good_=1;}?h=='~~'{_good_=1;}?!_good_{rv;}_priv_=1;i=i1+;}
+    h=ya[t,i];?h=='~~'{_stat_=1;}?h!='~'{?h!='~~'{rv;}}?yb[t,i1+]!='LOWER'{rv;}?yb[t,i2+]!='LOWER'{rv;}
+    _name_:=ya[t,i1+] ya[t,i2+]+;u:=ql[c,i3+];_pdok_:=u['o'];?!_pdok_{rv;}i=u['p'];?ya[t,i]!='\{'{rv;}
+    g:=po[c,i1+,'\}'];_gn_:=xb[g];?_gn_<=0{rv;}_sc_:=2147483647$;v:=nn;f:='';_ties_:=0;_close_:=0;j:=0;
+    wl?j<_gn_{q:=xa[g,j];w:=q['s'];?w<_sc_{_sc_=w;v=q['v'];f=qb[v];_ties_=1;_close_=q['p'];}ee{?w==_sc_{e:=qb[q['v']];?e!=f{_ties_=_ties_1+;}}}j=j1+;}
+    ?v==nn{rv;}?_ties_>1{rv;}z:=['k':'function','n':_name_,'a':u['v'],'v':v,'z':_stat_,'p':_priv_,'r':u['r'],'x':u['x']];yd[o,z,_close_1+,0];rv;
+}
+
+##! Full class declaration candidates, including one optional two-letter parent.
+~qo c p o {
+    t:=c['t'];q:=p;v:=0;
+    ?ya[t,q]=='-'{?ya[t,q1+]=='#'{v=1;q=q1+;}ee{rv;}}
+    ?ya[t,q]!='#'{rv;}
+    h:=qn[c,q];?h['o']==0{rv;}b:=h['p'];?ya[t,b]!='\{'{rv;}
+    g:=po[c,b1+,'\}'];n:=xb[g];i:=0;
+    wl?i<n{x:=xa[g,i];z:=['k':'class','n':h['n'],'a':h['v'],'v':x['v'],'p':v,'h':h['h']];yd[o,z,x['p']1+,x['s']];i=i1+;}
+    rv;
+}
+
+##! Destructor declaration.
+~qp c p o {
+    t:=c['t'];?ya[t,p]!='~-'{rv;}?ya[t,p1+]!='\{'{rv;}
+    g:=po[c,p2+,'\}'];n:=xb[g];i:=0;wl?i<n{x:=xa[g,i];z:=['k':'destructor','v':x['v']];yd[o,z,x['p']1+,x['s']];i=i1+;}rv;
+}
+
+##! Private current instance/static field declaration.
+~qq c p o {
+    t:=c['t'];?ya[t,p]!='-'{rv;}?ya[t,p1+]!='.'{rv;}
+    q:=p2+;z:=0;?ya[t,q]=='.'{z=1;q=q1+;}k:=yb[t,q];u:=0;?k=='LOWER'{u=1;}?k=='EXT'{u=1;}?u==0{rv;}
+    e:=q1+;w:=ya[t,e];d:=0;i:=0;?w==':='{d=1;}?w=='::='{d=1;i=1;}?d==0{rv;}
+    a:=zc[c,e1+];n:=xb[a];j:=0;wl?j<n{r:=xa[a,j];m:=['k':'member','n':ya[t,q],'a':nn,'c':nn,'z':z];x:=['k':'set-member-stmt','a':m,'v':r['e'],'d':1,'i':i,'p':1];yd[o,x,r['p'],r['s']];j=j1+;}rv;
+}
+
+##! Explicit parent-constructor invocation.
+~qr c p o {
+    t:=c['t'];?ya[t,p]!='^^'{rv;}?ya[t,p1+]!='['{rv;}
+    a:=zh[c,p1+];n:=xb[a];i:=0;
+    wl?i<n{r:=xa[a,i];z:= ['k':'super-init','a':r['a']];yd[o,z,r['p'],r['s']];i=i1+;}rv;
+}
+
+##! break / continue + block control.  The internal qi tail mode keeps the
+##! public callable surface unchanged while parsing recursive ei/ee chains.
+~qg c p o {
+    t:=c['t'];n:=za[c,p];a:=xc[];_an_:=0;i:=0;d:=nn;b:=0;g:=xc[];_gn_:=0;j:=0;h:=nn;u:=xc[];_un_:=0;k:=0;r:=nn;z:=nn;
+    ?n=='bl'{z:=ye['break'];yd[o,z,p2+,0];}
+    ?n=='cl'{z:=ye['continue'];yd[o,z,p2+,0];}
+
+    _if_:=0;q:=p;
+    ?n=='if'{_if_=1;q=p2+;}?ya[t,p]=='?'{_if_=1;q=p;}
+    ?ya[t,q]!='?'{_if_=0;}
+    ?_if_{
+        a=zc[c,q];_an_=xb[a];i=0;
+        wl?i<_an_{
+            d=xa[a,i];b=d['p'];?ya[t,b]=='\{'{
+                g=po[c,b1+,'\}'];_gn_=xb[g];j=0;
+                wl?j<_gn_{
+                    h=xa[g,j];u=qi[c,h['p']1+,'T'];_un_=xb[u];k=0;
+                    wl?k<_un_{
+                        r=xa[u,k];z=['k':'if','c':d['e'],'b':h['v'],'e':r['e'],'x':r['x']];
+                        yd[o,z,r['p'],d['s'] h['s'] + r['s'] +];k=k1+;
+                    }
+                    j=j1+;
+                }
+            }i=i1+;
+        }
+    }
+
+    ?n=='wl'{
+        q=p2+;?ya[t,q]=='?'{a=zc[c,q];_an_=xb[a];i=0;
+        wl?i<_an_{d=xa[a,i];b=d['p'];?ya[t,b]=='\{'{
+            g:=po[c,b1+,'\}'];_gn_:=xb[g];j:=0;
+            wl?j<_gn_{h=xa[g,j];z:=['k':'while','c':d['e'],'b':h['v']];yd[o,z,h['p']1+,d['s'] h['s'] +];j=j1+;}
+        }i=i1+;}
+        }
+    }
+    rv;
+}
+
+##! Recursive return-value candidate collector, depth-capped like the oracle.
+~ps c p v s d o {
+    t:=c['t'];
+    ?xb[v]>0{z:=['k':'return','v':v];yd[o,z,p,s];}
+    x:=ya[t,p];?x==';'{rv;}?x=='\}'{rv;}?yb[t,p]=='EOF'{rv;}
+    ?za[c,p]=='nn'{_nul_:=['k':'lit','t':'null','r':'nn'];w:=yc[v,_nul_];ps[c,p2+,w,s,d1+,o];rv;}
+    a:=zc[c,p];n:=xb[a];i:=0;
+    wl?i<n{q:=xa[a,i];?q['p']>p{w:=yc[v,q['e']];ps[c,q['p'],w,s q['s']+,d1+,o];}i=i1+;}
+    rv;
+}
+
+##! return
+~pg c p o {
+    ?za[c,p]!='rv'{rv;}
+    t:=c['t'];q:=p2+;x:=ya[t,q];
+    ?x==';'{v:=xc[];z:=['k':'return','v':v];yd[o,z,q,0];rv;}
+    ?x=='\}'{v:=xc[];z:=['k':'return','v':v];yd[o,z,q,0];rv;}
+    ?yb[t,q]=='EOF'{v:=xc[];z:=['k':'return','v':v];yd[o,z,q,0];rv;}
+    v:=xc[];ps[c,q,v,0,0,o];rv;
+}
+
+##! raise + try/catch/finally exception statements.
+~ph c p o {
+    _pair_:=za[c,p];j:=0;h:=nn;k:=0;z:=nn;
+    ?_pair_=='er'{
+        t:=c['t'];_ep_:=p2+;_ex_:=ya[t,_ep_];
+        ?_ex_==';'{z:=['k':'raise','v':nn];yd[o,z,_ep_,0];rv;}
+        ?_ex_=='\}'{z:=['k':'raise','v':nn];yd[o,z,_ep_,0];rv;}
+        ?yb[t,_ep_]=='EOF'{z:=['k':'raise','v':nn];yd[o,z,_ep_,0];rv;}
+        a:=zc[c,_ep_];n:=xb[a];i:=0;
+        wl?i<n{q:=xa[a,i];z=['k':'raise','v':q['e']];yd[o,z,q['p'],q['s']];i=i1+;}rv;
+    }
+    ?_pair_!='tr'{rv;}
+    t:=c['t'];?ya[t,p2+]!='\{'{rv;}
+    _try_:=po[c,p3+,'\}'];_tn_:=xb[_try_];_ti_:=0;
+    wl?_ti_<_tn_{
+        _ts_:=xa[_try_,_ti_];_after_:=_ts_['p']1+;_co_:=xc[];
+        ##! Explicit catch candidates, with optional one-token lower/extended binding.
+        ?za[c,_after_]=='ca'{
+            q:=_after_2+;_cn_:=nn;_k_:=yb[t,q];
+            ?ya[t,q]!='\{'{_nok_:=0;?_k_=='LOWER'{_nok_=1;}?_k_=='EXT'{_nok_=1;}?_nok_{_cn_=ya[t,q];q=q1+;}}
+            ?ya[t,q]=='\{'{
+                _cb_:=po[c,q1+,'\}'];_cbn_:=xb[_cb_];j=0;
+                wl?j<_cbn_{h=xa[_cb_,j];xd[_co_,['n':_cn_,'b':h['v'],'p':h['p']1+,'s':h['s']]];j=j1+;}
+            }
+        }
+        ##! No-catch path is needed for try/finally.
+        xd[_co_,['n':nn,'b':nn,'p':_after_,'s':0]];_con_:=xb[_co_];j=0;
+        wl?j<_con_{
+            _cs_:=xa[_co_,j];_ac_:=_cs_['p'];_hadf_:=0;
+            ?za[c,_ac_]=='fn'{?ya[t,_ac_2+]=='\{'{
+                _fb_:=po[c,_ac_3+,'\}'];_fn_:=xb[_fb_];k=0;
+                wl?k<_fn_{h=xa[_fb_,k];z=['k':'try','b':_ts_['v'],'n':_cs_['n'],'c':_cs_['b'],'f':h['v']];yd[o,z,h['p']1+,_ts_['s'] _cs_['s'] + h['s'] +];k=k1+;}
+                _hadf_=1;
+            }}
+            ?!_hadf_{?_cs_['b']!=nn{z=['k':'try','b':_ts_['v'],'n':_cs_['n'],'c':_cs_['b'],'f':nn];yd[o,z,_ac_,_ts_['s'] _cs_['s'] +];}}
+            j=j1+;
+        }
+        _ti_=_ti_1+;
+    }
+    rv;
+}
+
+##! Detect a reserved exported user-module variable write without invoking the
+##! ambiguity-aware expression parser. Returns ['u':alias,'n':name,'p':eq-pos] or nn.
+~qz c p {
+    t:=c['t'];_ur_:=c['r'];_ua_:=nn;_un_:=nn;_up_:=0;
+    _on_:=c['N'];?_on_{_nm_:=c['n'];_nk_:=@s|p|;_nh_:=in[_nk_,_nm_];?_nh_{_ua_=_nm_[_nk_];_un_=ya[t,p];_up_=p1+;}}
+    ?_ua_==nn{
+        _ak_:=yb[t,p];_aa_:='';_ap_:=p;
+        ?_ak_=='LOWER'{_aa_=ya[t,p];_ap_=p1+;}?_ak_=='EXT'{_aa_=ya[t,p];_ap_=p1+;}?_ak_=='UPPER'{?yb[t,p1+]=='UPPER'{_aa_=ya[t,p] ya[t,p1+]+;_ap_=p2+;}}
+        ?_aa_==''{rv nn;}?ya[t,_ap_]!='.'{rv nn;}_ah_:=in[_aa_,_ur_];?!_ah_{rv nn;}_ua_=_aa_;_un_=ya[t,_ap_1+];_up_=_ap_2+;
+    }
+    _ah_:=in[_ua_,_ur_];?!_ah_{rv nn;}_ug_:=_ur_[_ua_]['g'];_vh_:=in[_un_,_ug_];?!_vh_{rv nn;}?ya[t,_up_]!='='{rv nn;}
+    rv ['u':_ua_,'n':_un_,'p':_up_];
+}
+
+##! nearest assignment (=)
+~pi c p o {
+    _mw_:=qz[c,p];?_mw_!=nn{rv;}
+    r:=zb[c,p];?r==nn{rv;}t:=c['t'];?ya[t,r['p']]!='='{rv;}
+    a:=zc[c,r['p']1+];n:=xb[a];i:=0;
+    wl?i<n{q:=xa[a,i];z:=['k':'assign','a':r['a'],'y':r['y'],'v':q['e']];yd[o,z,q['p'],q['s']];i=i1+;}
+    rv;
+}
+
+##! postfix ++/-- on a simple lexical target.
+~pj c p o {
+    t:=c['t'];
+    ##! Statement-only update of an exported user-module variable. Module writes
+    ##! are reserved in statement position, matching the reference parser's early
+    ##! return before indexed/member/plain assignment or effectful-expression paths.
+    _mw_:=qz[c,p];?_mw_!=nn{_ua_:=_mw_['u'];_un_:=_mw_['n'];_up_:=_mw_['p'];_ug_:=c['r'][_ua_]['g'];_um_:=_ug_[_un_];_imm_:=_um_['i'];?!_imm_{_rhs0_:=zc[c,_up_1+];_rhsn_:=xb[_rhs0_];_rhsi_:=0;wl?_rhsi_<_rhsn_{_rhsc_:=xa[_rhs0_,_rhsi_];z:=['k':'module-var-assign','u':_ua_,'n':_un_,'v':_rhsc_['e']];yd[o,z,_rhsc_['p'],_rhsc_['s']];_rhsi_=_rhsi_1+;}}rv;}
+    ##! Statement-only object/current/static member '=' update.
+    _ma_:=zc[c,p];_mn_:=xb[_ma_];_mi_:=0;wl?_mi_<_mn_{_mq_:=xa[_ma_,_mi_];?_mq_['e']['k']=='member'{?ya[t,_mq_['p']]=='='{_mr_:=zc[c,_mq_['p']1+];_mrn_:=xb[_mr_];_mri_:=0;wl?_mri_<_mrn_{_mv_:=xa[_mr_,_mri_];z:=['k':'set-member-stmt','a':_mq_['e'],'v':_mv_['e'],'d':0,'i':0,'p':0];yd[o,z,_mv_['p'],_mq_['s'] _mv_['s']+];_mri_=_mri_1+;}}}_mi_=_mi_1+;}
+    k:=yb[t,p];?k!='LOWER'{?k!='EXT'{rv;}}
+    ##! Statement-only indexed '=' update.
+    ?ya[t,p1+]=='['{
+        _ix_:=zd[c,p];_in_:=xb[_ix_];_ii_:=0;
+        wl?_ii_<_in_{_ic_:=xa[_ix_,_ii_];?ya[t,_ic_['p']]=='='{_rhs_:=zc[c,_ic_['p']1+];_rn_:=xb[_rhs_];_ri_:=0;
+            wl?_ri_<_rn_{_rc_:=xa[_rhs_,_ri_];z:=['k':'set-index','a':_ic_['e'],'v':_rc_['e']];yd[o,z,_rc_['p'],_ic_['s'] _rc_['s']+];_ri_=_ri_1+;}
+        }_ii_=_ii_1+;}
+    }
+    v:=nn;
+    ?k=='LOWER'{v=yf['var',ya[t,p]];}ee{v=yf['ext',ya[t,p]];}
+    q:=p1+;x:=ya[t,q];z:=0;?x=='++'{z=1;}?x=='--'{z=1;}?!z{rv;}
+    a:=['k':'mutate','v':v,'o':x];yd[o,a,q1+,0];rv;
+}
+
+##! fl family plus effectful expression statements.  Loop expression-count states
+##! deliberately mirror the oracle's 1/2/3/4-expression foreach/range/slice forms.
+~pk c p o {
+    t:=c['t'];_pair_:=za[c,p];a:=xc[];n:=0;i:=0;q:=nn;b:=0;g:=xc[];_gn_:=0;j:=0;h:=nn;x:=nn;k:='';z:=0;
+    ?_pair_=='fl'{
+        _start_:=p2+;
+        ##! Counted repeat: fl <count> {...}. The oracle accepts all expression forms,
+        ##! including logic-mode ? expressions, as syntactic count expressions.
+        a=zc[c,_start_];n=xb[a];i=0;
+        wl?i<n{q=xa[a,i];b=q['p'];?ya[t,b]=='\{'{
+            g:=po[c,b1+,'\}'];_gn_:=xb[g];j:=0;
+            wl?j<_gn_{h=xa[g,j];x=['k':'for','y':'repeat','n':nn,'q':nn,'a':q['e'],'z':nn,'d':nn,'b':h['v']];yd[o,x,h['p']1+,q['s'] h['s'] +];j=j1+;}
+        }i=i1+;}
+
+        ##! Variable-led forms. A single lexical variable token owns the loop variable.
+        _vk_:=yb[t,_start_];_vok_:=0;?_vk_=='LOWER'{_vok_=1;}?_vk_=='EXT'{_vok_=1;}
+        ?_vok_{
+            _vn_:=ya[t,_start_];_seq_:=xc[];_empty_:=xc[];xd[_seq_,['v':_empty_,'p':_start_1+,'s':0]];_depth_:=1;
+            wl?_depth_<=4{
+                _next_:=xc[];_sn_:=xb[_seq_];_si_:=0;
+                wl?_si_<_sn_{
+                    _st_:=xa[_seq_,_si_];_ep_:=_st_['p'];
+                    a=zc[c,_ep_];n=xb[a];i=0;
+                    wl?i<n{
+                        q=xa[a,i];?q['p']>_ep_{
+                            _vs_:=yc[_st_['v'],q['e']];_sc_:=_st_['s'] q['s']+;_end_:=q['p'];_ns_:=['v':_vs_,'p':_end_,'s':_sc_];xd[_next_,_ns_];
+                            ?ya[t,_end_]=='\{'{
+                                g=po[c,_end_1+,'\}'];_gn_=xb[g];j=0;
+                                wl?j<_gn_{
+                                    h=xa[g,j];_kind_:='';_src_:=nn;_beg_:=nn;_stop_:=nn;_step_:=nn;
+                                    ?_depth_==1{_kind_='foreach';_src_=xa[_vs_,0];}
+                                    ?_depth_==2{_kind_='range';_beg_=xa[_vs_,0];_stop_=xa[_vs_,1];}
+                                    ?_depth_==3{_kind_='slice';_src_=xa[_vs_,0];_beg_=xa[_vs_,1];_stop_=xa[_vs_,2];}
+                                    ?_depth_==4{_kind_='slice_step';_src_=xa[_vs_,0];_beg_=xa[_vs_,1];_stop_=xa[_vs_,2];_step_=xa[_vs_,3];}
+                                    x=['k':'for','y':_kind_,'n':_vn_,'q':_src_,'a':_beg_,'z':_stop_,'d':_step_,'b':h['v']];yd[o,x,h['p']1+,_sc_ h['s'] +];j=j1+;
+                                }
+                            }
+                        }
+                        i=i1+;
+                    }
+                    _si_=_si_1+;
+                }
+                _seq_=_next_;_depth_=_depth_1+;
+            }
+        }
+    }
+
+    a=zc[c,p];n=xb[a];i=0;
+    wl?i<n{
+        q=xa[a,i];k=q['e']['k'];z=0;
+        ?k=='assign-expr'{z=1;}?k=='set-index'{z=1;}?k=='set-member'{z=1;}?k=='call'{z=1;}?k=='class-call'{z=1;}?k=='module-call'{z=1;}?k=='invoke'{z=1;}?k=='method'{z=1;}?k=='user-module-call'{z=1;}?k=='user-module-class-call'{z=1;}?k=='user-module-class-method'{z=1;}
+        ?z{x=['k':'expr','v':q['e']];yd[o,x,q['p'],q['s']];}
+        i=i1+;
+    }
+    rv;
+}
+
+##! Shallow statement dispatcher: each family owns its own ambiguity.
+~pl c p {
+    o:=xc[];_mw_:=qz[c,p];?_mw_!=nn{pj[c,p,o];rv qc[o];}
+    pd[c,p,o];qo[c,p,o];qp[c,p,o];qq[c,p,o];qr[c,p,o];qg[c,p,o];pg[c,p,o];ph[c,p,o];pi[c,p,o];pj[c,p,o];pk[c,p,o];
+    rv qc[o];
+}
+
+##! Priority state helpers for global statement sequencing.
+##! Keep the state comparison separate from the vector scan. Besides being easier to
+##! audit, this avoids a pathological Stage-2 contextual parse when map indexing,
+##! comparison, and state mutation are packed into the same loop expression.
+~qh y x {
+    a:=y['s'];b:=x['s'];?a<b{rv 1;}
+    ?a==b{c:=y['p'];d:=x['p'];?c>d{rv 1;}}
+    rv 0;
+}
+##! Sequence completion, plus an internal recursive conditional-tail mode.
+##! T-mode returns candidates ['e':elif-vector,'x':else-body-or-nn,'p':end,'s':score].
+~qi c x s {
+    t:=c['t'];
+    ?s!='T'{?s==nn{?yb[t,x]=='EOF'{rv 1;}rv 0;}?ya[t,x]==s{rv 1;}rv 0;}
+
+    o:=xc[];n:=za[c,x];
+    ?n=='ei'{
+        q:=x2+;a:=zc[c,q];_an_:=xb[a];i:=0;
+        wl?i<_an_{d:=xa[a,i];b:=d['p'];?ya[t,b]=='\{'{
+            g:=po[c,b1+,'\}'];_gn_:=xb[g];j:=0;
+            wl?j<_gn_{
+                h:=xa[g,j];u:=qi[c,h['p']1+,'T'];_un_:=xb[u];k:=0;
+                wl?k<_un_{r:=xa[u,k];v:=xc[];xd[v,['c':d['e'],'b':h['v']]];_re_:=r['e'];_rn_:=xb[_re_];m:=0;wl?m<_rn_{xd[v,xa[_re_,m]];m=m1+;}xd[o,['e':v,'x':r['x'],'p':r['p'],'s':d['s'] h['s'] + r['s'] +]];k=k1+;}
+                j=j1+;
+            }
+        }i=i1+;}
+        rv o;
+    }
+    ?n=='ee'{?ya[t,x2+]=='\{'{
+        g:=po[c,x3+,'\}'];_gn_:=xb[g];j:=0;
+        wl?j<_gn_{h:=xa[g,j];v:=xc[];xd[o,['e':v,'x':h['v'],'p':h['p']1+,'s':h['s']]];j=j1+;}
+        rv o;
+    }}
+    v:=xc[];xd[o,['e':v,'x':nn,'p':x,'s':0]];rv o;
+}
+~pm a {
+    n:=xb[a];b:=0;?n==0{rv b;}x:=xa[a,0];i:=1;y:=nn;
+    wl?i<n{y=xa[a,i];?qh[y,x]{b=i;x=y;}i=i1+;}
+    rv b;
+}
+~pn a i {rv zd[a,i];}
+
+##! Global shortest-path sequence parser. stop==nn means EOF; otherwise stop is a hard token.
+~po c p _stop_ {
+    t:=c['t'];q:=xc[];v:=xc[];xd[q,['p':p,'v':v,'s':0]];
+    _out_:=xc[];_best_:=[:];
+    wl?xb[q]>0{
+        i:=pm[q];_st_:=pn[q,i];x:=_st_['p'];
+        wl?ya[t,x]==';'{x=x1+;}
+        _key_:=@s|x|;_old_:=nn;?in[_key_,_best_]{_old_=_best_[_key_];}
+        ?_old_!=nn{?_st_['s']>_old_{cl}}
+        ?_old_==nn{_best_[_key_]:=_st_['s'];}ee{?_st_['s']<_old_{_best_[_key_]=_st_['s'];}}
+        _done_:=qi[c,x,_stop_];
+        ?_done_{
+            _fin_:=['v':_st_['v'],'p':x,'s':_st_['s']];
+            xd[_out_,_fin_];cl
+        }
+        a:=pl[c,x];n:=xb[a];j:=0;
+        wl?j<n{
+            d:=xa[a,j];e:=d['p'];?ya[t,e]==';'{e=e1+;}
+            ?e>x{
+                w:=yc[_st_['v'],d['e']];_ns_:=_st_['s'] d['s']+;
+                k:=@s|e|;_bs_:=nn;?in[k,_best_]{_bs_=_best_[k];}
+                ?_bs_==nn{xd[q,['p':e,'v':w,'s':_ns_]];}
+                ee{?_ns_<=_bs_{xd[q,['p':e,'v':w,'s':_ns_]];}}
+            }
+            j=j1+;
+        }
+    }
+    rv _out_;
+}
+
+##! Failure-only diagnostic localization. These helpers are never called by the
+##! successful parser path. They deliberately trade extra error-path work for zero
+##! bookkeeping cost during ordinary compilation.
+~qj t {
+    _stk_:=xc[];i:=0;
+    wl?yb[t,i]!='EOF'{
+        x:=ya[t,i];_op_:=0;
+        ?x=='\{'{_op_=1;}?x=='['{_op_=1;}?x=='('{_op_=1;}
+        if ?_op_ {xd[_stk_,['x':x,'i':i]];}
+        ee {
+            _cl_:=0;?x=='\}'{_cl_=1;}?x==']'{_cl_=1;}?x==')'{_cl_=1;}
+            ?_cl_ {
+                n:=xb[_stk_];?n==0{rv i;}
+                z:=xa[_stk_,n1-];o:=z['x'];_ok_:=0;
+                ?o=='\{'{?x=='\}'{_ok_=1;}}?o=='['{?x==']'{_ok_=1;}}?o=='('{?x==')'{_ok_=1;}}
+                ?!_ok_{_zi_:=z['i'];rv _zi_;}
+                _stk_['n']=n1-;
+            }
+        }
+        i=i1+;
+    }
+    n:=xb[_stk_];?n>0{z:=xa[_stk_,n1-];_zi_:=z['i'];rv _zi_;}
+    rv nn;
+}
+
+##! Farthest statement boundary reachable from p. This is a position-only replay of
+##! the sequence search, used only after the ordinary parse has already failed.
+~qk c p _stop_ {
+    t:=c['t'];q:=xc[];xd[q,p];_seen_:=[:];_far_:=p;
+    wl?xb[q]>0{
+        _qn_:=xb[q];x:=xa[q,_qn_1-];q['n']=_qn_1-;
+        wl?ya[t,x]==';'{x=x1+;}?x>_far_{_far_=x;}
+        _key_:=@s|x|;_had_:=in[_key_,_seen_];?_had_{cl}_seen_[_key_]:=1;
+        _done_:=qi[c,x,_stop_];?_done_{cl}
+        a:=pl[c,x];n:=xb[a];i:=0;
+        wl?i<n{d:=xa[a,i];e:=d['p'];wl?ya[t,e]==';'{e=e1+;}?e>x{xd[q,e];}i=i1+;}
+    }
+    rv _far_;
+}
+
+##! Return a diagnostic location map or ['found':0] when this source parses to EOF.
+##! Structural delimiter mismatches win because they can localize failures inside a
+##! compound statement even when that statement never becomes a parser candidate.
+~qv t e u h {
+    _si_:=qj[t];?_si_!=nn{z:=xa[t,_si_];_ec_:=z['c'] ln[z['t']]+;?ln[z['t']]==0{_ec_=z['c']1+;}rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':_ec_,'token':z['t']];}
+    g:=ua[];_en_:=xb[e];_ei_:=0;q:='';r:=nn;
+    wl?_ei_<_en_{r=xa[e,_ei_];q=r['n'];_sg_:=['a':r['a'],'b':r['b'],'d':r['d']];g[q]:=_sg_;_ei_=_ei_1+;}
+    c:=zg[t,g];c['r']=u;c['c']=h;qm[c];qx[c];x:=qk[c,0,nn];
+    ?yb[t,x]=='EOF'{rv ['found':0];}
+    _pair_:=za[c,x];
+    ?_pair_=='ei'{z:=xa[t,x];rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':z['c']2+,'token':'ei'];}
+    ?_pair_=='ee'{z:=xa[t,x];rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':z['c']2+,'token':'ee'];}
+    ?_pair_=='ca'{z:=xa[t,x];rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':z['c']2+,'token':'ca'];}
+    ?_pair_=='fn'{z:=xa[t,x];rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':z['c']2+,'token':'fn'];}
+    _ctl_:=0;?_pair_=='if'{_ctl_=1;}?_pair_=='wl'{_ctl_=1;}
+    ?_ctl_{_xp_:=x2+;?ya[t,_xp_]!='?'{z:=xa[t,_xp_];_tx_:=z['t'];_ec_:=z['c'] ln[_tx_]+;?_tx_==''{_ec_=z['c']1+;}rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':_ec_,'token':_tx_];}}
+    ?_pair_=='tr'{_xp_:=x2+;?ya[t,_xp_]!='\{'{z:=xa[t,_xp_];_tx_:=z['t'];_ec_:=z['c'] ln[_tx_]+;?_tx_==''{_ec_=z['c']1+;}rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':_ec_,'token':_tx_];}}
+    ?_pair_=='fl'{_xp_:=x2+;?ya[t,_xp_]=='\{'{z:=xa[t,_xp_];_tx_:=z['t'];_ec_:=z['c']1+;rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':_ec_,'token':_tx_];}}
+    a:=zc[c,x];n:=xb[a];i:=0;_mx_:=x;
+    wl?i<n{d:=xa[a,i];?d['p']>_mx_{_mx_=d['p'];}i=i1+;}
+    ?_mx_>x{?yb[t,_mx_]!='EOF'{x=_mx_;}}
+    z:=xa[t,x];_ec_:=z['c'] ln[z['t']]+;?ln[z['t']]==0{_ec_=z['c']1+;}
+    rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':_ec_,'token':z['t']];
+}
+
+##! K9J failure-only semantic provenance. These helpers are called only after
+##! ordinary compilation has already failed. They reconstruct statement start
+##! positions by matching the frozen semantic fingerprint against parser candidates.
+-~ra t p {
+    z:=xa[t,p];_tx_:=z['t'];_ec_:=z['c'] ln[_tx_]+;?ln[_tx_]==0{_ec_=z['c']1+;}
+    rv ['found':1,'line':z['l'],'column':z['c'],'end_line':z['l'],'end_column':_ec_,'token':_tx_];
+}
+-~rc c x a b u {
+    k:=x['k'];
+    ?k=='function'{rb[c,x['v'],a,b,u];rv;}
+    ?k=='class'{rb[c,x['v'],a,b,u];rv;}
+    ?k=='destructor'{rb[c,x['v'],a,b,u];rv;}
+    ?k=='if'{rb[c,x['b'],a,b,u];e:=x['e'];n:=xb[e];i:=0;wl?i<n{q:=xa[e,i];rb[c,q['b'],a,b,u];i=i1+;}q:=x['x'];?q!=nn{rb[c,q,a,b,u];}rv;}
+    ?k=='while'{rb[c,x['b'],a,b,u];rv;}
+    ?k=='for'{rb[c,x['b'],a,b,u];rv;}
+    ?k=='try'{rb[c,x['b'],a,b,u];q:=x['c'];?q!=nn{rb[c,q,a,b,u];}q=x['f'];?q!=nn{rb[c,q,a,b,u];}rv;}
+    rv;
+}
+-~rb c v a b u {
+    t:=c['t'];n:=xb[v];i:=0;_cur_:=a;
+    wl?i<n{
+        x:=xa[v,i];f:=qa[x];p:=_cur_;_found_:=0;_end_:=p;
+        wl?p<b{
+            _key_:=@s|p|;_used_:=in[_key_,u];
+            ?!_used_{d:=pl[c,p];m:=xb[d];j:=0;wl?j<m{q:=xa[d,j];_end0_:=q['p'];?_end0_<=b{_fp_:=qa[q['e']];?_fp_==f{_found_=1;_end_=_end0_;bl}}j=j1+;}}
+            ?_found_{bl}p=p1+;
+        }
+        ?_found_{
+            x['_loc_']:=ra[t,p];_key_:=@s|p|;u[_key_]:=1;rc[c,x,p,_end_,u];_cur_=_end_;
+        }
+        i=i1+;
+    }
+    rv;
+}
+
+##! Parse a syntactically complete program exactly as qy does, then annotate only
+##! the selected AST with failure-only statement provenance for semantic diagnostics.
+~rd t e u h {
+    g:=ua[];_en_:=xb[e];_ei_:=0;q:='';r:=nn;
+    wl?_ei_<_en_{r=xa[e,_ei_];q=r['n'];_sg_:=['a':r['a'],'b':r['b'],'d':r['d']];g[q]:=_sg_;_ei_=_ei_1+;}
+    c:=zg[t,g];c['r']=u;c['c']=h;qm[c];qx[c];a:=po[c,0,nn];n:=xb[a];?n<=0{er'v1 program parser: incomplete program';}
+    b:=2147483647$;v:=nn;f:='';_ties_:=0;i:=0;
+    wl?i<n{q=xa[a,i];?q['s']<b{b=q['s'];v=q['v'];f=qb[v];_ties_=1;}ee{?q['s']==b{z:=qb[q['v']];?z!=f{_ties_=_ties_1+;}}}i=i1+;}
+    ?v==nn{er'v1 program parser: incomplete program';}?_ties_>1{er'v1 program parser: ambiguous cheapest program';}
+    _used_:=[:];rb[c,v,0,xb[t],_used_];rv v;
+}
+
+##! Choose unique cheapest complete program and return its statement vector.
+~pp s {
+    c:=pa[s];a:=po[c,0,nn];n:=xb[a];?n<=0{er'v1 program parser: incomplete program';}
+    b:=2147483647$;v:=nn;f:='';_ties_:=0;i:=0;
+    wl?i<n{q:=xa[a,i];?q['s']<b{b=q['s'];v=q['v'];f=qb[v];_ties_=1;}ee{?q['s']==b{z:=qb[q['v']];?z!=f{_ties_=_ties_1+;}}}i=i1+;}
+    ?v==nn{er'v1 program parser: incomplete program';}?_ties_>1{er'v1 program parser: ambiguous cheapest program';}
+    rv v;
+}
+
+~pt s {g:=ua[];c:=ze[s,g];x:=c['t'];rv x;}
+
+~pu t e {
+    g:=ua[];_en_:=xb[e];_ei_:=0;q:='';r:=nn;
+    wl?_ei_<_en_{r=xa[e,_ei_];q=r['n'];_sg_:=['a':r['a'],'b':r['b'],'d':r['d']];g[q]:=_sg_;_ei_=_ei_1+;}
+    c:=zg[t,g];_emptyreg_:=[:];c['r']=_emptyreg_;qm[c];qx[c];a:=po[c,0,nn];n:=xb[a];?n<=0{er'v1 program parser: incomplete program';}
+    b:=2147483647$;v:=nn;f:='';_ties_:=0;i:=0;
+    wl?i<n{q=xa[a,i];?q['s']<b{b=q['s'];v=q['v'];f=qb[v];_ties_=1;}ee{?q['s']==b{z:=qb[q['v']];?z!=f{_ties_=_ties_1+;}}}i=i1+;}
+    ?v==nn{er'v1 program parser: incomplete program';}?_ties_>1{er'v1 program parser: ambiguous cheapest program';}
+    rv v;
+}
+
+##! Parse pre-tokenized source with direct callable signatures, user-module
+##! alias metadata, and direct imported class signatures supplied by Stage 2.
+~qy t e u h {
+    g:=ua[];_en_:=xb[e];_ei_:=0;q:='';r:=nn;
+    wl?_ei_<_en_{r=xa[e,_ei_];q=r['n'];_sg_:=['a':r['a'],'b':r['b'],'d':r['d']];g[q]:=_sg_;_ei_=_ei_1+;}
+    c:=zg[t,g];c['r']=u;c['c']=h;qm[c];qx[c];a:=po[c,0,nn];n:=xb[a];?n<=0{er'v1 program parser: incomplete program';}
+    b:=2147483647$;v:=nn;f:='';_ties_:=0;i:=0;
+    wl?i<n{q=xa[a,i];?q['s']<b{b=q['s'];v=q['v'];f=qb[v];_ties_=1;}ee{?q['s']==b{z:=qb[q['v']];?z!=f{_ties_=_ties_1+;}}}i=i1+;}
+    ?v==nn{er'v1 program parser: incomplete program';}?_ties_>1{er'v1 program parser: ambiguous cheapest program';}
+    rv v;
+}
+
+~pv t {
+    o:=xc[];i:=0;d:=0;
+    wl?yb[t,i]!='EOF'{
+        x:=ya[t,i];
+        ?x=='\{'{d=d1+;i=i1+;cl}
+        ?x=='\}'{?d>0{d=d1-;}i=i1+;cl}
+        ?d==0{?x=='>'{?yb[t,i1+]=='STRING'{
+            p:=pb[ya[t,i1+]];q:=i2+;a:=nn;
+            ?ya[t,q]==':'{
+                k:=yb[t,q1+];
+                ?k=='LOWER'{a=ya[t,q1+];q=q2+;}
+                ?k=='EXT'{a=ya[t,q1+];q=q2+;}
+                ?k=='UPPER'{?yb[t,q2+]=='UPPER'{a=ya[t,q1+] ya[t,q2+]+;q=q3+;}}
+            }
+            r:=['p':p,'a':a];xd[o,r];i=q;cl
+        }}}
+        i=i1+;
+    }
+    rv o;
+}
+
+##! Convenience semantic fingerprint.
+~pq s {v:=pp[s];rv qb[v];}

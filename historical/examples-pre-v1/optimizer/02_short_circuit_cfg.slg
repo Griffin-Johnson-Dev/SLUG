@@ -1,0 +1,8 @@
+//! v0.1.4 optimizer: RHS assignments remain conditional CFG effects.
+a:=1
+b:=0
+s:=0
+?b+s:=1{co'bad'}
+cos
+?a/s:=2{co'or'}
+cos

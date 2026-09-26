@@ -1,0 +1,7 @@
+##! Native v1 expression differential probe.
+>'@std/sys':SY
+>'expr_core.slg'
+a := SY.av[];
+n := ln[a];
+?n <= 0 { er 'usage: v1-expr <source>'; }
+co[ji[a[0]]];

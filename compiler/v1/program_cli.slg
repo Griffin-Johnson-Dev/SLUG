@@ -1,0 +1,7 @@
+##! Native v1 ordinary-program differential probe.
+>'@std/sys':SY
+>'program_core.slg'
+a:=SY.av[];
+n:=ln[a];
+?n<=0{er'usage: v1-program <source>';}
+co[pq[a[0]]];

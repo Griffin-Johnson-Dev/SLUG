@@ -1,0 +1,10 @@
+//! v0.1.2 — object cycles finalize when unreachable, not only at process shutdown.
+#AB{
+    .n:=nn
+    ~-{co'destroyed'}
+}
+fl 3{
+    a:=AB[]
+    a.n:=a
+}
+co'done'

@@ -1,0 +1,8 @@
+//! v0.1.4 optimizer: loop-carried mutation is represented by an SSA phi.
+a:=5
+wl?a{
+    a--
+    ?a==3{cl}
+    coa
+    ?a==1{bl}
+}

@@ -1,0 +1,4 @@
+##! SLUG v1 program-parser signature-table facade.
+>'signatures.slg'
+~ua {rv sa[];}
+~ub {rv sb[];}

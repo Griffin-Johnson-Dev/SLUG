@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "milestone": "K9G",
+  "compiler_version": "0.9.0-dev+k9g",
+  "language_version": "1.0",
+  "cli_contract": 1,
+  "lsp": {
+    "protocol": "LSP 3.x stdio subset",
+    "server": "tooling/lsp/slug-lsp.js",
+    "runtime": "Node.js >=18",
+    "dependencies": 0,
+    "sync": "full",
+    "formatting": true,
+    "diagnostics": true,
+    "stdin_overlay": true,
+    "custom_requests": [
+      "slug/toolingInfo",
+      "slug/projectInfo"
+    ]
+  },
+  "compiler_changes": [
+    "tooling-check stdin overlay",
+    "tooling-format stdin transform",
+    "root-source module overlay only"
+  ],
+  "frozen": [
+    "language semantics",
+    "provider linkage",
+    "project manifest schema",
+    "diagnostic schema"
+  ],
+  "canonical_generated_c": {
+    "bytes": 3210223,
+    "sha256": "94c6e158af6754ba7e5fab861397e483bf55c9577976a9e41c1368e796256386"
+  },
+  "gates": {
+    "tooling": "29/29",
+    "lsp": "18/18",
+    "project_manifest": "22/22",
+    "cli": "26/26",
+    "identifier": "8/8",
+    "exception_control": "10/10",
+    "module_linkage": "33/33",
+    "audited_reference": "32/32",
+    "native_hardening": "8/8 + ASan/UBSan"
+  }
+}

@@ -1,0 +1,7 @@
+~ad@i32a@i16b@i16{
+    rvab+
+}
+x@i16:=A$
+y@i16:=B$
+z@i32:=adxy
+co z

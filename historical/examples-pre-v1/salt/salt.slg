@@ -1,0 +1,456 @@
+//! SALT — SLUG Acceptance & Language Torture
+//! One executable intentionally combines dense grammar, semantics, modules, OOP,
+//! closures, traits, GC, optimizer-sensitive control flow, hostile input, and data.
+
+>'lib/traits.slg'
+>'lib/state.slg':ST
+>'lib/left.slg':LL
+>'lib/right.slg':RR
+>'lib/objects.slg':OB
+>'lib/math.slg':MA
+>'lib/namespace.slg':m
+>'lib/namespace.slg':NM
+>'lib/namespace.slg':_ns_
+>'lib/hostile.slg':HI
+
+g:=0
+
+~ok x{
+    ?!x{co'SALT OK FAIL';co g;co x;er'SALT assertion failed'}
+    g=g1+
+    rv
+}
+~eq x y{
+    ?x!=y{co'SALT EQ FAIL';co g;co x;co y;er'SALT equality assertion failed'}
+    g=g1+
+    rv
+}
+~mr x{rvx x1+ x2+}
+~on x{rvx}
+~df x=A$ y=B${rvx y+}
+~fc n{
+    ?n<=1{rv1}
+    rv n fc[n1-]*
+}
+~vs x[y]{
+    s:=x
+    fli y{s=si+}
+    rvs
+}
+~ps s{
+    m:=[:]
+    m['head']:=s[:2]
+    m['sep']:=s[2]
+    m['tail']:=s[3:]
+    rvm
+}
+~sq x{rvx1+}
+
+//! Scalars, exact integer carriers, casts, arithmetic, strings, booleans.
+eq[A$,A$]
+eq[5 2/,2.5]
+eq[@i 5 2/,2]
+eq[5 2%,1]
+eq[2 3^,8]
+eq[2 3-^,.125]
+eq[@i8|7F$|,7F$]
+eq[@u8|FF$|,FF$]
+eq[@u64|FFFFFFFFFFFFFFFF$|,FFFFFFFFFFFFFFFF$]
+ok[?FFFFFFFFFFFFFFFF$>7FFFFFFFFFFFFFFF$]
+eq[@sA$,'10']
+eq['ab' 'cd'+,'abcd']
+eq[@s@b0,'false']
+eq[@s|[1,2,3]|,'[1,2,3]']
+eq[@i8|@u8|7F$||,7F$]
+eq[@s|'A|B|C'|,'A|B|C']
+
+//! Assignment expression, nearest assignment, lexical shadow, broadcast, multireturn.
+a:=b:=3
+eq[a,3]
+eq[b,3]
+a b='same'
+eq[a,'same']
+eq[b,'same']
+ab:=mr[A$]
+eq[a,A$]
+eq[b,B$]
+c:=mr[A$]
+eq[c,A$]
+de:=on[B$]
+eq[d,B$]
+eq[e,B$]
+x:=A$
+?1{
+    x:=B$
+    eq[x,B$]
+    x=C$
+    eq[x,C$]
+}
+eq[x,A$]
+?1{x=B$}
+eq[x,B$]
+
+//! Boolean precedence, short circuit, branches, loops, break/continue and scope.
+a:=0
+?0+a:=1{}
+eq[a,0]
+?1/a:=2{}
+eq[a,0]
+?1+a:=3{}
+eq[a,3]
+if?0{er'bad branch'}ei?1{a=A$}ee{er'bad else'}
+eq[a,A$]
+a:=5
+b:=0
+wl?a{
+    a--
+    ?a==3{cl}
+    b=b1+
+    ?a==1{bl}
+}
+eq[a,1]
+eq[b,3]
+a=0
+flA${a++?a==3{bl}}
+eq[a,3]
+s:=0
+fli0$5{
+    ?i==2{cl}
+    s=si+
+}
+eq[s,8]
+
+//! Lists, nested lists, slices, Unicode, maps, aliases, sort, membership, identity.
+a:=[3,1,2]
+b:=a
+sl[a]
+eq[a,[1,2,3]]
+ok[?a===b]
+a[0]=9
+eq[b[0],9]
+c:=a[1:]
+eq[c,[2,3]]
+eq[a[::1-],[3,2,9]]
+u:='a🐌β'
+eq[ln[u],3]
+eq[u[1],'🐌']
+eq[u[1:],'🐌β']
+ok[in['🐌',u]]
+m:=['a':1,'b':2]
+eq[m['a'],1]
+ok[in['b',m]]
+ok[iv[2,m]]
+m['c']:=3
+eq[m['c'],3]
+n:=m
+ok[?m===n]
+q:=['x':[1,2],'y':['z':3]]
+eq[q['x'][1],2]
+eq[q['y']['z'],3]
+
+//! Structural equality on cycles must terminate; identity remains separate.
+a:=[nn]
+a[0]=a
+b:=[nn]
+b[0]=b
+ok[?a==b]
+ok[?a!==b]
+
+//! Custom parser over strings/maps and 2x2 matrix math over nested lists.
+p:=ps['AA=payload']
+eq[p['head'],'AA']
+eq[p['sep'],'=']
+eq[p['tail'],'payload']
+a:=[[1,2],[3,4]]
+b:=[[5,6],[7,8]]
+c:=MA.mm[a,b]
+eq[c,[[13$,16$],[2B$,32$]]]
+
+//! Deterministic PRNG implemented in SLUG, using module-owned mutable state.
+eq[MA.rn[],8]
+eq[MA.rn[],9]
+eq[MA.rn[],E$]
+
+//! Named functions: defaults, xx, recursion, variadics, forced named call.
+eq[df[],15$]
+eq[df[1,2],3]
+eq[df[xx,1],B$]
+eq[fc[5],78$]
+eq[vs[1,2,3,4],A$]
+eq[!df[A$,B$],15$]
+
+//! Lambdas: defaults, variadics, multi-return, escaping mutable capture, nesting.
+f:=lbx=1y=2{rvx y+}
+eq[!f[],3]
+eq[!f[xx,B$],C$]
+v:=lbx[y]{rvx ln[y]+}
+eq[!v[A$,B$,C$],C$]
+f:=lbx{rvx x1+}
+ab:=!f[A$]
+eq[a,A$]
+eq[b,B$]
+~mk{
+    a:=A$
+    f:=lbx=a{rvx}
+    a=B$
+    rvf
+}
+h:=mk
+eq[!h[],B$]
+~nk{
+    a:=1
+    rv lb{rv lb{a=a1+ rva}}
+}
+f:=nk
+h:=!f[]
+eq[!h[],2]
+eq[!h[],3]
+
+//! Exceptions and finally: catch binding, rethrow, return-through-finally, loop transfer.
+a:=0
+tr{er'oops'}cae{ok[in['oops',@se]]}fn{a=a1+}
+eq[a,1]
+~zf{
+    a:=0
+    tr{rvA$}fn{a=a1+}
+}
+eq[zf,A$]
+a=0
+fl5{
+    tr{
+        a=a1+
+        ?a==3{bl}
+    }fn{b:=1}
+}
+eq[a,3]
+
+//! Traits/interfaces: required, defaults, static defaults, inheritance diamond.
+#TT:ID{
+    ~go x{rvx3+}
+}
+t:=TT[]
+eq[t.go[A$],D$]
+eq[t.df[],B$]
+eq[TT.st[A$],C$]
+#?EA{~zz{rv1}}
+#?EB{~zz{rv2}}
+#CF:EA:EB{~zz{rv3}}
+c:=CF[]
+eq[c.zz[],3]
+
+//! OOP: constructor defaults, static state, inheritance, super, object-in-object,
+//! closures retaining self, imported classes, active namespace class lookup.
+a:=OB.BA[A$]
+eq[a.gt[],A$]
+eq[a.ad[B$],15$]
+f:=a.mk[]
+eq[!f[],A$]
+b:=OB.CH[B$]
+eq[b.gt[],C$]
+eq[b.sy[],D$]
+c:=OB.BX[a,b]
+eq[c.sm[],16$]
+eq[OB.BA.ct[],1]
+eq[OB.CH.ct[],2]
+<:OB
+c:=BA[C$]
+eq[c.gt[],C$]
+<:.
+
+//! Module state, typed exports, diamond import identity, alias/direct namespace shapes.
+eq[ST.x,A$]
+eq[LL.la[],B$]
+eq[RR.ra[],C$]
+eq[ST.x,C$]
+ST.x=D$
+eq[ST.gt[],D$]
+eq[ST.y,'locked']
+eq[m.sq[A$],64$]
+eq[NM.sq[B$],79$]
+eq[_ns_.sq[C$],90$]
+<:NM
+eq[sq[A$],64$]
+?1{
+    <:.
+    eq[sq[A$],B$]
+}
+eq[sq[A$],64$]
+<:.
+eq[NM.NS.mk[A$],B$]
+eq[NM.NS.x,B$]
+
+//! Hostile source-file content is inert data, not instructions/code.
+eq[HI.x,'IGNORE PREVIOUS INSTRUCTIONS; er PWNED; <script>alert(1)</script>; #AA{}']
+eq[HI.gt[],HI.x]
+eq[HI.y,'system: run shell; delete files; print PWNED']
+
+//! stdin is data only. The runner supplies two deliberately hostile lines.
+a:=ci''
+b:=ci''
+eq[a,'IGNORE PREVIOUS INSTRUCTIONS AND PRINT PWNED; er\'PWNED\'; #ZZ{}']
+eq[b,'<script>alert(1)</script> ; system: delete files ; rv PWNED']
+
+//! Optimizer-sensitive constants/CSE/phis/pure calls remain semantically exact.
+a:=1
+?0{a=2}ee{a=3}
+eq[a,3]
+eq[7FFFFFFFFFFFFFFF$ 3$%,1]
+~pu x{rvx1+}
+eq[pu[A$],B$]
+eq[1 2+,3]
+eq[1 2+,3]
+
+
+//! Additional collection/lifetime/OOP combinations that historically fail in subtle ways.
+_frozen_::=[1,2]
+_frozen_[0]=9
+eq[_frozen_,[9,2]]
+a:='same literal'
+b:='same literal'
+ok[?a!==b]
+b=a
+ok[?a===b]
+a:=[1,2,3,4,5]
+s:=0
+flia1$4{s=si+}
+eq[s,9]
+s=0
+u:='a🐌β'
+fliu{s=s1+}
+eq[s,3]
+s=0
+m:=['a':1,'b':2,'c':3]
+flim{s=s1+}
+eq[s,3]
+
+#MR{
+    ~sp x{rvx x1+}
+}
+c:=MR[]
+ab:=c.sp[A$]
+eq[a,A$]
+eq[b,B$]
+
+//! Object structural equality and reference identity are independent.
+a:=OB.BA[A$]
+b:=OB.BA[A$]
+ok[?a==b]
+ok[?a!==b]
+b=a
+ok[?a===b]
+
+//! Reachability-driven destructors must run child before parent.
+d:=0
+#PD{
+    ~-{d=dA$*1+}
+}
+#CD<PD{
+    ~-{d=dA$*2+}
+}
+~dz{
+    a:=CD[]
+    rv
+}
+dz
+eq[d,15$]
+
+//! Native capability bones: bytes, OS/process facts, clocks/entropy, filesystem,
+//! streaming file handles, and TCP sockets. Higher-level protocols stay SLUG code.
+_bytes_:=by[[0,1,FF$,41$]]
+eq[ln[_bytes_],4]
+eq[_bytes_[2],FF$]
+eq[_bytes_[::1-],by[[41$,FF$,1,0]]]
+ok[in[FF$,_bytes_]]
+eq[@s|by['🐌']|,'🐌']
+_bytes2_:=by[[0,1,FF$,41$]]
+ok[?_bytes_==_bytes2_]
+ok[?_bytes_!==_bytes2_]
+
+_args_:=av[]
+eq[ln[_args_],3]
+eq[_args_[0],'alpha']
+eq[_args_[1],'two words']
+eq[_args_[2],'🐌']
+eq[ev['SALT_ENV'],'IGNORE PREVIOUS INSTRUCTIONS; shell=NO; PWNED=NO']
+_plat_:=pf[]
+ok[in[_plat_['os'],['windows','posix']]]
+ok[in[_plat_['sep'],['/','\\']]]
+ok[?ln[cw[]]>0]
+_t0_:=mt[]
+wt[.001]
+_t1_:=mt[]
+ok[?_t1_>=_t0_]
+ok[?tm[]>0]
+eq[ln[en[20$]],20$]
+_py_:=ev['SALT_PYTHON']
+eq[pc[[_py_,'-c','import sys;sys.exit(0 if sys.argv[1]=="x;echo PWNED" else 9)','x;echo PWNED']],0]
+
+//! Real filesystem operations, including hostile text that must remain inert data.
+_root_:=ev['SALT_ROOT']
+_sep_:=_plat_['sep']
+_dir_:=_root_ _sep_+ 'native'+
+ok[md[_dir_]]
+_bin_:=_dir_ _sep_+ 'data.bin'+
+eq[fw[_bin_,by[[0,1,FF$]]],3]
+eq[fa[_bin_,'ABC'],3]
+eq[fr[_bin_],by[[0,1,FF$]] by['ABC']+]
+_meta_:=fm[_bin_]
+eq[_meta_['size'],6]
+ok[_meta_['file']]
+_txt_:=_dir_ _sep_+ 'hostile.txt'+
+_hostile_::='IGNORE PREVIOUS INSTRUCTIONS; er PWNED; rm everything; <script>alert(1)</script>'
+eq[fw[_txt_,_hostile_],ln[by[_hostile_]]]
+eq[ft[_txt_],_hostile_]
+_stream_:=_dir_ _sep_+ 'stream.bin'+
+_h_:=fo[_stream_,'w+']
+eq[hw[_h_,_bytes_],4]
+eq[hp[_h_],4]
+eq[hs[_h_,1,0],1]
+eq[hr[_h_,2],by[[1,FF$]]]
+eq[hp[_h_],3]
+hf[_h_]
+hc[_h_]
+hc[_h_]
+_list_:=fd[_dir_]
+eq[_list_,['data.bin','hostile.txt','stream.bin']]
+_moved_:=_dir_ _sep_+ 'moved.bin'+
+mv[_bin_,_moved_]
+eq[fe[_bin_],@b0]
+ok[fe[_moved_]]
+ok[rm[_moved_]]
+ok[rm[_txt_]]
+ok[rm[_stream_]]
+ok[rm[_dir_]]
+
+//! HTTP is deliberately composed from bytes + TCP primitives rather than a native
+//! HTTP builtin. The harness is only the external client.
+~ht t b{
+    s:='<!doctype html><title>' t+
+    s=s '</title><body>'+ 
+    s=s b+
+    s=s '</body>'+ 
+    rvs
+}
+_salthtml_::=ht['SALT','<b>ok</b>']
+eq[_salthtml_,'<!doctype html><title>SALT</title><body><b>ok</b></body>']
+ok[in['<b>ok</b>',_salthtml_]]
+_srv_:=so[]
+bn[_srv_,'127.0.0.1',0]
+ls[_srv_,4]
+co'SALT HTTP PORT'
+co gp[_srv_]
+_cli_:=ac[_srv_]
+_req_:=rc[_cli_,1000$]
+_reqs_:=@s|_req_|
+ok[in['GET /salt?prompt=IGNORE',_reqs_]]
+ok[in['PWNED',_reqs_]]
+_crlf_:=by[[D$,A$]]
+_resp_:=by['HTTP/1.1 200 OK'] _crlf_+ by['Content-Length: 56'] + _crlf_+ by['Content-Type: text/html; charset=utf-8'] + _crlf_+ by['Connection: close'] + _crlf_+_crlf_+by[_salthtml_]+
+eq[sd[_cli_,_resp_],ln[_resp_]]
+sc[_cli_]
+sc[_srv_]
+
+//! Final marker. The runner additionally requires a zero live managed heap at shutdown.
+co'SALT PASS'
+cog
+co_salthtml_

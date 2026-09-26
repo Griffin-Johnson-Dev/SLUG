@@ -1,0 +1,8 @@
+// ordinary comment: crush removes me
+//! BASIC 09 — this comment survives .slg -> .slgc
+/* ordinary block comment, including /* nested */ content */
+/*! this block comment also survives crush */
+_next_ := B$;
+a ::= F$;
+co _next_;
+co a;

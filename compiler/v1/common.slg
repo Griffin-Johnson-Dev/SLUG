@@ -1,0 +1,275 @@
+##! SLUG v1 frontend common helpers.  This layer is compiled by the frozen Stage-2 seed.
+>'vector_core.slg'
+>'lexer_core.slg'
+
+##! Tokenize ordinary SLUG source with the frozen lexer.
+~ha s { t := lx[s]; rv t; }
+
+##! Safe token text/kind lookup.  Past EOF reads as empty text / EOF kind.
+~hb t i {
+    n := vl[t];
+    ?i < 0 { rv ''; }
+    ?i >= n { rv ''; }
+    x := vg[t, i];
+    r := x['t'];
+    rv r;
+}
+~hd t i {
+    n := vl[t];
+    ?i < 0 { rv 'EOF'; }
+    ?i >= n { rv 'EOF'; }
+    x := vg[t, i];
+    r := x['k'];
+    rv r;
+}
+
+##! Physical adjacency (end byte of left token == start byte of right token).
+~he t i j {
+    n := vl[t];
+    ?i < 0 { rv 0; }
+    ?j < 0 { rv 0; }
+    ?i >= n { rv 0; }
+    ?j >= n { rv 0; }
+    a := vg[t, i];
+    b := vg[t, j];
+    x := a['e'];
+    y := b['s'];
+    rv ?x == y;
+}
+
+##! Candidate record: expression/statement e, exclusive end p, preference score s.
+~hg e p s { rv ['e':e,'p':p,'s':s]; }
+
+##! Sequence-path record: statement vector v, exclusive end p, score s.
+~hh v p s { rv ['v':v,'p':p,'s':s]; }
+
+##! Shallow-copy a chunked vector.
+~hi a {
+    b := vn[];
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        x := vg[a, i];
+        vp[b, x];
+        i = i 1 +;
+    }
+    rv b;
+}
+
+##! Copy a vector and append one value.
+~hj a x {
+    b := hi[a];
+    vp[b, x];
+    rv b;
+}
+
+##! Copy a vector prefix [0,n).
+~hk a n {
+    b := vn[];
+    m := vl[a];
+    ?n > m { n = m; }
+    i := 0;
+    wl ?i < n {
+        x := vg[a, i];
+        vp[b, x];
+        i = i 1 +;
+    }
+    rv b;
+}
+
+##! Candidate vector append helper.
+~hl o e p s { c := hg[e,p,s]; vp[o,c]; rv; }
+
+##! Small AST constructors shared by expression/program parsers.
+~hm k { rv ['k':k]; }
+~hn k n { rv ['k':k,'n':n]; }
+~ho t r { rv ['k':'lit','t':t,'r':r]; }
+~hq o a b { rv ['k':'bin','o':o,'a':a,'b':b]; }
+~ht o a b { rv ['k':'cmp','o':o,'a':a,'b':b]; }
+~hu o a b { rv ['k':'logic','o':o,'a':a,'b':b]; }
+~hv k v { rv ['k':k,'v':v]; }
+~hx n a { rv ['k':'call','n':n,'a':a]; }
+~hy k a { rv ['k':k,'a':a]; }
+~hz a b { rv ['a':a,'b':b]; }
+
+
+##! Fingerprint a vector of AST values.
+~ia a {
+    s := '[';
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        ?i > 0 { s = s ',' +; }
+        x := vg[a, i];
+        q := ib[x];
+        s = s q +;
+        i = i 1 +;
+    }
+    s = s ']' +;
+    rv s;
+}
+
+##! Stable binding-contract vector fingerprint.
+~id a {
+    s := '['; n := vl[a]; i := 0;
+    wl ?i < n {
+        ?i > 0 { s = s ',' +; }
+        x := vg[a,i];
+        ?x == nn { s = s '_' +; } ee { s = s x +; }
+        i = i 1 +;
+    }
+    s = s ']' +; rv s;
+}
+
+##! Stable semantic AST fingerprint.  The Python oracle harness implements this same format.
+##! Fingerprints are memoized on internal AST maps so nested candidates are not re-walked
+##! quadratically during parser deduplication. The cache key is internal metadata only.
+~ib x {
+    _has_:=in['_fp',x];?_has_{s:=x['_fp'];rv s;}
+    s:=ii[x];x['_fp']:=s;rv s;
+}
+~ii x {
+    k := x['k'];
+    ?k == 'lit' {
+        s := 'L(' x['t'] +;
+        s = s ':' +;
+        s = s x['r'] +;
+        s = s ')' +;
+        rv s;
+    }
+    ?k == 'var' { s := 'V(' x['n'] +; s = s ')' +; rv s; }
+    ?k == 'ext' { s := 'X(' x['n'] +; s = s ')' +; rv s; }
+    ?k == 'default' { rv 'D'; }
+    ?k == 'bin' {
+        s := 'B(' x['o'] +; s = s ',' +; s = s ib[x['a']] +;
+        s = s ',' +; s = s ib[x['b']] +; s = s ')' +; rv s;
+    }
+    ?k == 'cmp' {
+        s := 'C(' x['o'] +; s = s ',' +; s = s ib[x['a']] +;
+        s = s ',' +; s = s ib[x['b']] +; s = s ')' +; rv s;
+    }
+    ?k == 'logic' {
+        s := 'G(' x['o'] +; s = s ',' +; s = s ib[x['a']] +;
+        s = s ',' +; s = s ib[x['b']] +; s = s ')' +; rv s;
+    }
+    ?k == 'bool' { s := 'Q(' ib[x['v']] +; s = s ')' +; rv s; }
+    ?k == 'not' { s := 'N(' ib[x['v']] +; s = s ')' +; rv s; }
+    ?k == 'unary' { s := 'U(' x['o'] +; s = s ',' +; s = s ib[x['v']] +; s = s ')' +; rv s; }
+    ?k == 'format' {
+        s:='FS[';a:=x['a'];n:=vl[a];i:=0;
+        wl?i<n{?i>0{s=s ','+;}p:=vg[a,i];?p['k']=='text'{s=s 'T('+;s=s p['r']+;s=s ')'+;}ee{s=s 'E('+;s=s ib[p['v']]+;s=s ')'+;}i=i1+;}
+        s=s ']'+;rv s;
+    }
+    ?k == 'cast' {
+        s := 'T(' x['t'] +; s = s ',' +; s = s ib[x['v']] +; s = s ')' +; rv s;
+    }
+    ?k == 'dynamic-cast' {
+        s := 'DT(' ib[x['t']] +; s = s ',' +; s = s ib[x['v']] +; s = s ')' +; rv s;
+    }
+    ?k == 'call' {
+        s := 'F(' x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'module-call' {
+        s := 'MF(' x['u'] +; s = s ',' +; s = s x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'user-module-call' {
+        s := 'UMF(' x['u'] +; s = s ',' +; s = s x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'user-module-var' {
+        s := 'UMV(' x['u'] +; s = s ',' +; s = s x['n'] +; s = s ')' +; rv s;
+    }
+    ?k == 'user-module-class-call' {
+        s := 'UMC(' x['u'] +; s = s ',' +; s = s x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'user-module-class-member' {
+        s := 'UMS(' x['u'] +; s = s ',' +; s = s x['c'] +; s = s ',' +; s = s x['n'] +; s = s ')' +; rv s;
+    }
+    ?k == 'user-module-class-method' {
+        s := 'UMM(' x['u'] +; s = s ',' +; s = s x['c'] +; s = s ',' +; s = s x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'class-call' {
+        s := 'CC(' x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'member' {
+        s := 'MB(' x['n'] +; s = s ',' +;
+        y := x['a']; ?y == nn { s = s '_' +; } ee { s = s ib[y] +; }
+        s = s ',' +; y = x['c']; ?y == nn { s = s '_' +; } ee { s = s y +; }
+        s = s ',' +; ?x['z'] { s = s 'S' +; } ee { s = s 'I' +; }
+        s = s ')' +; rv s;
+    }
+    ?k == 'method' {
+        s := 'MC(' x['n'] +; s = s ',' +; s = s ia[x['a']] +; s = s ',' +;
+        y := x['r']; ?y == nn { s = s '_' +; } ee { s = s ib[y] +; }
+        s = s ',' +; y = x['c']; ?y == nn { s = s '_' +; } ee { s = s y +; }
+        s = s ',' +; ?x['z'] { s = s 'S' +; } ee { s = s 'I' +; }
+        s = s ',' +; ?x['u'] { s = s 'U' +; } ee { s = s 'N' +; }
+        s = s ')' +; rv s;
+    }
+    ?k == 'invoke' {
+        s := 'I(' ib[x['f']] +; s = s ',' +; s = s ia[x['a']] +; s = s ')' +; rv s;
+    }
+    ?k == 'list' { s := 'A' ia[x['a']] +; rv s; }
+    ?k == 'frozen-list' { s := 'Z' ia[x['a']] +; rv s; }
+    ?k == 'map' {
+        s := 'M[';
+        ?x['f'] { s = 'Y['; }
+        a := x['a']; n := vl[a]; i := 0;
+        wl ?i < n {
+            ?i > 0 { s = s ',' +; }
+            p := vg[a,i];
+            s = s ib[p['a']] +; s = s ':' +; s = s ib[p['b']] +;
+            i = i 1 +;
+        }
+        s = s ']' +; rv s;
+    }
+    ?k == 'index' {
+        s := 'J(' ib[x['a']] +; s = s ',' +; s = s ib[x['b']] +; s = s ')' +; rv s;
+    }
+    ?k == 'slice' {
+        s := 'S(' ib[x['a']] +;
+        s = s ',' +; y := x['b']; ?y == nn { s = s '_' +; } ee { s = s ib[y] +; }
+        s = s ',' +; y = x['c']; ?y == nn { s = s '_' +; } ee { s = s ib[y] +; }
+        s = s ',' +; y = x['d']; ?y == nn { s = s '_' +; } ee { s = s ib[y] +; }
+        s = s ')' +; rv s;
+    }
+    ?k == 'set-index' {
+        s := 'SI(' ib[x['a']] +; s = s ',' +; s = s ib[x['v']] +; s = s ')' +; rv s;
+    }
+    ?k == 'set-member' {
+        s := 'SM(' ib[x['a']] +; s = s ',' +; s = s ib[x['v']] +; s = s ',' +;
+        ?x['i'] { s = s 'I' +; } ee { s = s 'M' +; }
+        s = s ')' +; rv s;
+    }
+    ?k == 'assign-expr' {
+        s := 'E(' x['o'] +; s = s ',' +; s = s ia[x['a']] +;
+        s = s ',' +; s = s id[x['y']] +;
+        s = s ',' +; s = s ib[x['v']] +; s = s ')' +; rv s;
+    }
+    er 'unknown v1 AST fingerprint kind';
+}
+
+##! Semantic-candidate dedupe.  Keep the lowest score for each (end,fingerprint).
+~ic a {
+    o := vn[];
+    m := [:];
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        c := vg[a,i];
+        f := ib[c['e']];
+        q := @s|c['p']|;
+        q = q ':' +; q = q f +;
+        y := in[q,m];
+        ?!y {
+            m[q] := vl[o];
+            vp[o,c];
+        }
+        ee {
+            j := m[q];
+            d := vg[o,j];
+            ?c['s'] < d['s'] { vs[o,j,c]; }
+        }
+        i = i 1 +;
+    }
+    rv o;
+}

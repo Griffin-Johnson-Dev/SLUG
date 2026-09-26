@@ -1,0 +1,10 @@
+//! Numeric range is stop-exclusive; i belongs to the loop scope.
+s:=0
+i:=F$
+fli0$5{
+    ?i==2{cl}
+    s=si+
+}
+cos
+i:=i
+coi

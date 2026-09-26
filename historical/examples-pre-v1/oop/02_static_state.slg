@@ -1,0 +1,10 @@
+//! OOP 02 — class-specific static state and static methods.
+#CT {
+    ..n:=0
+    ~~up {..n=..n1+ rv..n}
+    ~~gt {rv..n}
+}
+co[CT.gt[]]
+co[CT.up[]]
+co[CT.up[]]
+co[CT.n]

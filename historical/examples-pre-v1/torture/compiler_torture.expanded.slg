@@ -1,0 +1,60 @@
+//! SLUG compiler torture — intentionally dense semantics in a readable .slg shell
+/*! This metadata comment must survive crushing but never enter the executable. */
+#GH x {
+}
+~zz x {
+    rv x;
+}
+a := 9;
+a++;
+co a;
+b := 10;
+co b;
+c := 5 2 /;
+co c;
+d := 9$ 3 -;
+co d;
+e := 93 -;
+co e;
+f := 2 3 - ^;
+co f;
+g := 0 0 ^;
+co g;
+h := 5;
+i := 2;
+j := @i h i /;
+k := h i %;
+co j;
+co k;
+lm = 'broadcast';
+co l;
+co m;
+n ::= F$;
+co n;
+_obj_ := B$;
+co _obj_;
+o := p := 3;
+co o;
+co p;
+co[q := C$];
+co q;
+r := 'value=' q +;
+co r;
+s := @s 10;
+t := 'hex10-decimal=' s +;
+co t;
+u := 4;
+u++;
+u++;
+u--;
+co u;
+v := 2 3 * 4 +;
+co v;
+w := 2 3 4 * +;
+co w;
+x := 7 2 /;
+y := @i x;
+z := 7 2 %;
+co x;
+co y;
+co z;

@@ -1,0 +1,87 @@
+//! SLUG compiler torture — intentionally dense semantics in a readable .slg shell
+// This ordinary comment must disappear when crushed.
+/*! This metadata comment must survive crushing but never enter the executable. */
+/* nested /* comments */ must not disturb token positions */
+
+#GH x {
+}
+
+~zz x {
+    rv x;
+}
+
+a := 9;
+a++;
+co a;
+
+b := 10;
+co b;
+
+c := 52/;
+co c;
+
+d := 9$3$-;
+co d;
+
+// Longest digit-run atom wins when unary - is viable: -(0x93) = -147.
+e := 93-;
+co e;
+
+// This only works if '-' stays a candidate unary operator on the top RPN value.
+f := 23-^;
+co f;
+
+g := 00^;
+co g;
+
+h := 5;
+i := 2;
+j := @i h i /;
+k := h i %;
+co j;
+co k;
+
+l m = 'broadcast';
+co l;
+co m;
+
+n ::= F$;
+co n;
+
+_obj_ := B$;
+co _obj_;
+
+// Nested := must allocate both bindings and yield the inner value outward.
+o := p := 3;
+co o;
+co p;
+
+// Explicit [] forces this to be co(q := C$), not assignment to c,o,q.
+co[q := C$];
+co q;
+
+r := 'value=' q +;
+co r;
+
+s := @s 10;
+t := 'hex10-decimal=' s +;
+co t;
+
+u := 4;
+u++;
+u++;
+u--;
+co u;
+
+v := 2 3 * 4 +;
+co v;
+
+w := 2 3 4 * +;
+co w;
+
+x := 7 2 /;
+y := @i x;
+z := 7 2 %;
+co x;
+co y;
+co z;

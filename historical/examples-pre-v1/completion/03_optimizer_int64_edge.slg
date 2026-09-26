@@ -1,0 +1,3 @@
+//! v0.1.5 optimizer: exact signed remainder must never round through host float.
+co[7FFFFFFFFFFFFFFF$ 3 %]
+co[7FFFFFFFFFFFFFFF$ 11$ %]

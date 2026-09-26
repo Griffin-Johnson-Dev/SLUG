@@ -1,0 +1,181 @@
+##! SLUG Stage 2 C backend support.
+##! Output, lexical environments, literal decoding, builtins, and collision-safe C names.
+>'../v1/vector_core.slg'
+>'@std/fs':FS
+
+##! Raw output and indented line output.
+~da s x { FS.hw[s['h'], x]; rv; }
+~cb s d x {
+    p := '';
+    i := 0;
+    wl ?i < d { p = p '    ' +; i = i 1 +; }
+    p = p x +;
+    p = p '\n' +;
+    da[s, p];
+    rv;
+}
+
+##! Fresh C local temporary.
+~cc s {
+    u := s['u'];
+    u = u 1 +;
+    s['u'] = u;
+    t := @s|u|;
+    z := '_sv_' t +;
+    rv z;
+}
+
+##! Lexical local environment: vector of scope maps. Module globals are resolved separately.
+~cd {
+    e := vn[];
+    m := [:];
+    vp[e, m];
+    rv e;
+}
+~ce e { m := [:]; vp[e, m]; rv; }
+~cf e { vo[e]; rv; }
+~cg e n {
+    i := vl[e];
+    wl ?i > 0 {
+        i = i 1 -;
+        m := vg[e, i];
+        y := in[n, m];
+        ?y { z := m[n]; rv z; }
+    }
+    z := nn;
+    rv z;
+}
+~ch s e n {
+    i := vl[e];
+    ?i <= 0 { er 'Stage-2 codegen environment has no scope'; }
+    i = i 1 -;
+    m := vg[e, i];
+    y := in[n, m];
+    ?y { z := m[n]; rv z; }
+    z := cc[s];
+    m[n] := z;
+    rv z;
+}
+
+##! Decode a Stage-1 string literal spelling into its runtime text.
+~cj r {
+    n := ln[r];
+    ?n < 2 { er 'invalid Stage-2 string literal'; }
+    e := n 1 -;
+    i := 1;
+    o := '';
+    wl ?i < e {
+        c := r[i];
+        if ?c != '\\' {
+            o = o c +;
+            i = i 1 +;
+        }
+        ee {
+            i = i 1 +;
+            ?i >= e { o = o '\\' +; bl; }
+            c = r[i];
+            if ?c == 'n' { o = o '\n' +; }
+            ee {
+                if ?c == 'r' { o = o '\r' +; }
+                ee {
+                    if ?c == 't' { o = o '\t' +; }
+                    ee {
+                        if ?c == '0' { o = o '\0' +; }
+                        ee { o = o c +; }
+                    }
+                }
+            }
+            i = i 1 +;
+        }
+    }
+    rv o;
+}
+
+##! Escape runtime text as a C string literal.
+~ck x {
+    o := '"';
+    n := ln[x];
+    i := 0;
+    wl ?i < n {
+        c := x[i];
+        if ?c == '\\' { o = o '\\\\' +; }
+        ee {
+            if ?c == '"' { o = o '\\"' +; }
+            ee {
+                if ?c == '\n' { o = o '\\n' +; }
+                ee {
+                    if ?c == '\r' { o = o '\\r' +; }
+                    ee {
+                        if ?c == '\t' { o = o '\\t' +; }
+                        ee {
+                            if ?c == '\0' { o = o '\\000' +; }
+                            ee { o = o c +; }
+                        }
+                    }
+                }
+            }
+        }
+        i = i 1 +;
+    }
+    o = o '"' +;
+    rv o;
+}
+
+##! Runtime root-builtin C entry points. Standard capabilities are deliberately absent.
+~cp {
+    z := ['co':'sv_builtin_co','ci':'sv_builtin_ci','ty':'sv_builtin_ty','cv':'sv_builtin_cv','in':'sv_builtin_in','iv':'sv_builtin_iv','ln':'sv_builtin_ln','sl':'sv_builtin_sl','by':'sv_builtin_by'];
+    rv z;
+}
+
+##! Canonical standard-module capability resolver.
+~cz u n {
+    k:=u '.' +;k=k n+;
+    z:=[
+        '@std/sys.av':'sv_builtin_av','@std/sys.ev':'sv_builtin_ev','@std/sys.cw':'sv_builtin_cw','@std/sys.pf':'sv_builtin_pf','@std/sys.cp':'sv_builtin_cp','@std/sys.pc':'sv_builtin_pc',
+        '@std/time.tm':'sv_builtin_tm','@std/time.mt':'sv_builtin_mt','@std/time.wt':'sv_builtin_wt','@std/rand.en':'sv_builtin_en',
+        '@std/fs.fr':'sv_builtin_fr','@std/fs.ft':'sv_builtin_ft','@std/fs.fw':'sv_builtin_fw','@std/fs.fa':'sv_builtin_fa','@std/fs.fe':'sv_builtin_fe','@std/fs.fd':'sv_builtin_fd','@std/fs.fm':'sv_builtin_fm','@std/fs.md':'sv_builtin_md','@std/fs.rm':'sv_builtin_rm','@std/fs.mv':'sv_builtin_mv','@std/fs.fo':'sv_builtin_fo','@std/fs.hr':'sv_builtin_hr','@std/fs.hw':'sv_builtin_hw','@std/fs.hs':'sv_builtin_hs','@std/fs.hp':'sv_builtin_hp','@std/fs.hf':'sv_builtin_hf','@std/fs.hc':'sv_builtin_hc',
+        '@std/net.so':'sv_builtin_so','@std/net.cn':'sv_builtin_cn','@std/net.bn':'sv_builtin_bn','@std/net.ls':'sv_builtin_ls','@std/net.ac':'sv_builtin_ac','@std/net.sd':'sv_builtin_sd','@std/net.rc':'sv_builtin_rc','@std/net.sc':'sv_builtin_sc','@std/net.gp':'sv_builtin_gp',
+        '@std/gfx.sf':'sv_builtin_sf','@std/gfx.px':'sv_builtin_px','@std/gfx.rf':'sv_builtin_rf','@std/gfx.dl':'sv_builtin_dl','@std/gfx.sb':'sv_builtin_sb','@std/gfx.wn':'sv_builtin_wn','@std/gfx.wf':'sv_builtin_wf','@std/gfx.pe':'sv_builtin_pe','@std/gfx.wx':'sv_builtin_wx',
+        '@std/audio.au':'sv_builtin_au','@std/audio.aq':'sv_builtin_aq','@std/audio.ax':'sv_builtin_ax',
+        '@std/dev.do':'sv_builtin_do','@std/dev.dv':'sv_builtin_dv','@std/dev.dr':'sv_builtin_dr','@std/dev.dw':'sv_builtin_dw','@std/dev.dx':'sv_builtin_dx',
+        '@internal/cli.ex':'sv_builtin_cli_ex','@internal/cli.se':'sv_builtin_cli_se','@internal/cli.so':'sv_builtin_cli_so','@internal/cli.ep':'sv_builtin_cli_ep'
+    ];
+    h:=in[k,z];?!h{r:=nn;rv r;}r:=z[k];rv r;
+}
+
+##! C-safe, collision-free encoding of an arbitrary UTF-8 SLUG identifier.
+##! Each source byte is emitted as decimal digits followed by an underscore.
+~cq n {
+    b := by[n];
+    _nb_ := ln[b];
+    i := 0;
+    o := '';
+    wl ?i < _nb_ {
+        v := b[i];
+        t := @s|v|;
+        o = o t +;
+        o = o '_' +;
+        i = i 1 +;
+    }
+    rv o;
+}
+
+##! Stable native symbol names include module identity and UTF-8-safe source name.
+~cr m n {
+    i := m['id'];
+    a := @s|i|;
+    b := cq[n];
+    z := 'slug_m' a +;
+    z = z '_fn_' +;
+    z = z b +;
+    rv z;
+}
+~cs m n {
+    i := m['id'];
+    a := @s|i|;
+    b := cq[n];
+    z := 'slug_m' a +;
+    z = z '_g_' +;
+    z = z b +;
+    rv z;
+}

@@ -1,0 +1,92 @@
+{
+  "name": "slug-language",
+  "displayName": "SLUG Language Support",
+  "description": "Language support for SLUG using the native-backed slug-lsp server.",
+  "version": "0.9.0",
+  "publisher": "slug-lang",
+  "license": "Apache-2.0",
+  "preview": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters"
+  ],
+  "keywords": [
+    "slug",
+    "language",
+    "lsp"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:slug",
+    "onCommand:slug.restartLanguageServer",
+    "onCommand:slug.showToolingInfo",
+    "onCommand:slug.showProjectInfo"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "slug",
+        "aliases": [
+          "SLUG",
+          "slug"
+        ],
+        "extensions": [
+          ".slg",
+          ".slgc"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "slug",
+        "scopeName": "source.slug",
+        "path": "./syntaxes/slug.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "slug.restartLanguageServer",
+        "title": "SLUG: Restart Language Server"
+      },
+      {
+        "command": "slug.showToolingInfo",
+        "title": "SLUG: Show Tooling Info"
+      },
+      {
+        "command": "slug.showProjectInfo",
+        "title": "SLUG: Show Project Info"
+      }
+    ],
+    "configuration": {
+      "title": "SLUG",
+      "properties": {
+        "slug.lspPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to slug-lsp, slug-lsp.js, or the SLUG install prefix LSP launcher. Empty uses automatic discovery."
+        },
+        "slug.compilerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Optional path to the native slug compiler. Empty uses PATH/discovery."
+        },
+        "slug.trace.server": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log LSP JSON-RPC messages to the SLUG output channel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "check": "node --check extension.js && node --check src/discovery.js && node --check src/lsp-client.js && node --check test/client-smoke.js && node --check test/discovery-smoke.js && node --check test/extension-activate-smoke.js"
+  },
+  "extensionKind": [
+    "workspace"
+  ]
+}

@@ -1,0 +1,7 @@
+//! BASIC 07 — statement-only = can create/update several bindings by broadcast
+a b = 'same';
+co a;
+co b;
+a b = 'new';
+co a;
+co b;

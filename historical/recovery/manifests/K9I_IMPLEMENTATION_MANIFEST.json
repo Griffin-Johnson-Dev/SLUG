@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "milestone": "K9I",
+  "compiler_version": "0.9.0-dev+k9i",
+  "language_version": "1.0",
+  "cli_contract": 1,
+  "diagnostic_position_mode": "failure-pass-v1",
+  "architecture": {
+    "successful_parser_hot_path_changed": false,
+    "locator_invocation": "failure-only",
+    "module_context": true,
+    "stdin_overlay": true,
+    "lsp_utf16_conversion": true,
+    "semantic_overclaim": false
+  },
+  "canonical_generated_c": {
+    "bytes": 3294872,
+    "sha256": "bd57b81a755dc5cc123eac19620a2fa8cf6af241c8d1bfce4df2707937eff132"
+  },
+  "gates": {
+    "tooling": "34/34",
+    "lsp": "23/23",
+    "program_differential": "129/129 valid + 28/28 rejects",
+    "lexer_differential": "37/37",
+    "expression_differential": "125/125 valid + 11/11 rejects",
+    "semantic_differential": "26/26 valid + 31/31 rejects",
+    "audited_conformance": "32/32",
+    "project_manifest": "22/22",
+    "cli": "26/26",
+    "identifier": "8/8",
+    "exception_control": "10/10",
+    "module_linkage": "33/33",
+    "native_hardening": "8/8 O0/O3 + ASan/UBSan"
+  },
+  "successful_path_performance": {
+    "same_source": "compiler/stage2/app.slg (K9I root)",
+    "k9h_seconds": 86.7,
+    "k9i_seconds": 90.17,
+    "delta_percent": 4.0,
+    "k9h_peak_rss_kib": 738408,
+    "k9i_peak_rss_kib": 738372,
+    "interpretation": "normal source-growth cost; failure locator not invoked on successful checks"
+  }
+}

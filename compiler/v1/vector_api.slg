@@ -1,0 +1,7 @@
+##! SLUG v1 program-parser vector helper facade.
+>'vector_core.slg'
+~xa v i {rv vg[v,i];}
+~xb v {rv vl[v];}
+~xc {rv vn[];}
+~xd v x {rv vp[v,x];}
+~xe v i x {rv vs[v,i,x];}

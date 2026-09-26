@@ -1,0 +1,5 @@
+a@u64:=FFFFFFFFFFFFFFFF$
+co a
+co?a>7FFFFFFFFFFFFFFF$
+b:=a1-
+co b

@@ -1,0 +1,4 @@
+//! This comment survives slug crush.
+a:=9
+a++
+co a

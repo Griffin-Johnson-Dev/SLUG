@@ -1,0 +1,7 @@
+/build/
+*.py[cod]
+__pycache__/
+*.vsix
+*.slug-tmp
+.*.slug-lsp-*.slg
+.DS_Store

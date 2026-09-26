@@ -1,0 +1,21 @@
+##! Native audited-v1 lexer differential probe.
+>'@std/sys':SY
+>'lexer_core.slg'
+>'vector_core.slg'
+a := SY.av[];
+n := ln[a];
+?n <= 0 { er 'usage: v1-lexer <source>'; }
+t := lx[a[0]];
+i := 0;
+wl ?i < vl[t] {
+    x := vg[t,i];
+    k := x['k'];
+    q := by[x['t']];
+    s := x['s'];
+    e := x['e'];
+    l := x['l'];
+    c := x['c'];
+    p := x['p'];
+    co[k]; co[q]; co[s]; co[e]; co[l]; co[c]; co[p];
+    i = i 1 +;
+}

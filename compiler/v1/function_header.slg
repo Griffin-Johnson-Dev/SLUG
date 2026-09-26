@@ -1,0 +1,52 @@
+##! SLUG v1 named-function header parser.
+##! Kept separate so program_core retains its historical callable namespace size.
+>'expr_api.slg'
+>'common_api.slg'
+>'vector_api.slg'
+
+##! Parse the header beginning immediately after a two-letter function name.
+##! Returns required/max arity, body-brace position, concrete parameter records,
+##! optional return contracts and optional variadic capture.
+~ql c p {
+    t:=c['t'];i:=p;_ret_:=nn;_ok_:=1;_cl_:=0;_cn_:=nn;q:=nn;k:='';_isn_:=0;
+    ?ya[t,i]=='#'{
+        ?yb[t,i1+]=='UPPER'{?yb[t,i2+]=='UPPER'{_cl_=1;_cn_=ya[t,i1+] ya[t,i2+]+;i=i3+;}ee{_ok_=0;}}ee{_ok_=0;}
+    }
+    ?!_cl_{?ya[t,i]=='@'{q=zf[c,i];?q==nn{_ok_=0;}ee{r:=xc[];xd[r,q['t']];_ret_=r;i=q['p'];}}
+    ee{?ya[t,i]=='['{?ya[t,i1+]=='@'{
+        r:=xc[];j:=i1+;_more_:=1;
+        wl?_more_{q=zf[c,j];?q==nn{_ok_=0;_more_=0;}ee{xd[r,q['t']];j=q['p'];?ya[t,j]==','{j=j1+;}ee{_more_=0;}}}
+        ?_ok_{?xb[r]<=0{_ok_=0;}?ya[t,j]!=']'{_ok_=0;}?_ok_{_ret_=r;i=j1+;}}
+    }}}
+    }
+    ?!_ok_{rv ['a':0,'b':0,'p':p,'v':xc[],'r':nn,'x':nn,'d':0,'o':0];}
+
+    a:=xc[];_req_:=0;_tot_:=0;_var_:=nn;_variadic_:=0;
+    wl?yb[t,i]!='EOF'{
+        ?ya[t,i]=='\{'{
+            _max_:=_tot_;_dense_:=1;?_variadic_{_max_=2147483647$;_dense_=0;}
+            ?_cl_{rv ['a':_req_,'b':_max_,'p':i,'v':a,'r':nn,'x':nn,'d':1,'o':1,'n':_cn_];}
+            rv ['a':_req_,'b':_max_,'p':i,'v':a,'r':_ret_,'x':_var_,'d':_dense_,'o':1];
+        }
+        ?ya[t,i]=='['{
+            k=yb[t,i1+];_isn_=0;?k=='LOWER'{_isn_=1;}?k=='EXT'{_isn_=1;}
+            ?_isn_{?ya[t,i2+]==']'{?_cl_{rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':nn,'x':nn,'d':0,'o':0];}_var_=ya[t,i1+];_variadic_=1;i=i3+;cl}}
+            rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':_ret_,'x':nn,'d':0,'o':0];
+        }
+        k=yb[t,i];_isn_=0;?k=='LOWER'{_isn_=1;}?k=='EXT'{_isn_=1;}
+        ?!_isn_{rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':_ret_,'x':nn,'d':0,'o':0];}
+        n:=ya[t,i];i=i1+;_ty_:=nn;d:=nn;
+        ?ya[t,i]=='@'{q=zf[c,i];?q==nn{rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':_ret_,'x':nn,'d':0,'o':0];}_ty_=q['t'];i=q['p'];}
+        _tot_=_tot_1+;
+        ?ya[t,i]=='='{
+            g:=zc[c,i1+];_gn_:=xb[g];?_gn_<=0{rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':_ret_,'x':nn,'d':0,'o':0];}
+            _end_:=2147483647$;_sc_:=2147483647$;_best_:=nn;j:=0;
+            wl?j<_gn_{q=xa[g,j];e:=q['p'];w:=q['s'];?e<_end_{_end_=e;_sc_=w;_best_=q;}ee{?e==_end_{?w<_sc_{_sc_=w;_best_=q;}}}j=j1+;}
+            ?_best_==nn{rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':_ret_,'x':nn,'d':0,'o':0];}
+            d=_best_['e'];i=_best_['p'];
+        }
+        ee{_req_=_req_1+;}
+        xd[a,['n':n,'t':_ty_,'d':d]];
+    }
+    rv ['a':_req_,'b':_tot_,'p':i,'v':a,'r':_ret_,'x':_var_,'d':0,'o':0];
+}

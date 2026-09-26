@@ -1,0 +1,251 @@
+##! SLUG v1 structural semantic validator.
+##! First milestone: control/function/module context legality over the v1 AST maps.
+>'program_api.slg'
+>'vector_api.slg'
+
+##! K9J semantic provenance side channel. Normal ASTs have no `_loc_` field.
+##! The failure-only parser replay annotates statements, and the semantic validator
+##! remembers the most specific annotated statement only while traversing it.
+_semloc_ := nn;
+-~vd x {_h_:=in['_loc_',x];?_h_{_semloc_=x['_loc_'];}rv;}
+~vh a c {_semloc_=nn;tr{va[a,0,0,1,nn];oy[a,c];}ca _e_{rv _semloc_;}rv nn;}
+-~vf x m {vd[x];er m;}
+
+##! Validate a statement vector. f=function depth, l=loop depth, m=module-scope flag,
+##! r=current function return-contract vector or nn.
+~va v f l m r {
+    n:=xb[v];i:=0;
+    wl?i<n{vb[xa[v,i],f,l,m,r];i=i1+;}
+    rv;
+}
+
+##! Validate one statement under the supplied structural context.
+~vb x f l m r {
+    vd[x];k:=x['k'];
+    ?k=='return'{
+        ?f<=0{vf[x,'return used outside a function/class body'];}
+        ?r!=nn{?xb[x['v']]!=xb[r]{vf[x,'static return-count contract mismatch'];}}
+        rv;
+    }
+    ?k=='break'{?l<=0{vf[x,'break used outside a loop'];}rv;}
+    ?k=='continue'{?l<=0{vf[x,'continue used outside a loop'];}rv;}
+    ?k=='import'{?!m{vf[x,'imports are only valid at module scope'];}rv;}
+    ?k=='function'{
+        ?!m{vf[x,'named functions are only valid at module scope or directly in a class body'];}
+        a:=x['a'];n:=xb[a];i:=0;_saw_:=0;
+        wl?i<n{p:=xa[a,i];d:=p['d'];?d!=nn{_saw_=1;}ee{?_saw_{vf[x,'required parameter cannot follow a defaulted parameter'];}}i=i1+;}
+        q:=x['x'];?q!=nn{i=0;wl?i<n{p:=xa[a,i];?p['n']==q{vf[x,'variadic binding duplicates a fixed parameter'];}i=i1+;}}
+        va[x['v'],f1+,0,0,x['r']];rv;
+    }
+    ?k=='if'{
+        va[x['b'],f,l,0,r];e:=x['e'];n:=xb[e];i:=0;wl?i<n{q:=xa[e,i];va[q['b'],f,l,0,r];i=i1+;}
+        q:=x['x'];?q!=nn{va[q,f,l,0,r];}rv;
+    }
+    ?k=='while'{va[x['b'],f,l1+,0,r];rv;}
+    ?k=='for'{va[x['b'],f,l1+,0,r];rv;}
+    ?k=='try'{
+        va[x['b'],f,l,0,r];
+        q:=x['c'];?q!=nn{va[q,f,l,0,r];}
+        q=x['f'];?q!=nn{va[q,f,l,0,r];}
+        rv;
+    }
+    ##! Current shallow expression/assignment/mutation/comment/raise families have no
+    ##! additional structural control-context rule at this milestone.
+    rv;
+}
+
+
+
+##! Build compact class metadata used by the audited OOP legality pass.
+-~oa v {
+    c:=[:];n:=xb[v];i:=0;
+    wl ?i<n {
+        x:=xa[v,i];
+        ?x['k']=='class'{
+            a:=x['a'];z:=xb[a];j:=0;r:=0;
+            wl ?j<z {q:=xa[a,j];?q['d']==nn{r=r1+;}j=j1+;}
+            _fv_:=xc[];_mv_:=xc[];c[x['n']]:=['h':x['h'],'r':r,'a':z,'f':[:],'m':[:],'F':_fv_,'M':_mv_];
+        }
+        i=i1+;
+    }
+    i=0;
+    wl ?i<n {
+        x:=xa[v,i];
+        ?x['k']=='class'{
+            k:=x['n'];d:=c[k];f:=d['f'];m:=d['m'];b:=x['v'];z:=xb[b];j:=0;
+            wl ?j<z {
+                q:=xa[b,j];t:=q['k'];
+                ?t=='function'{_mi_:= ['n':q['n'],'p':q['p'],'s':q['z'],'o':k];m[q['n']]:=_mi_;xd[d['M'],_mi_];}
+                ?t=='expr'{
+                    y:=q['v'];
+                    ?y['k']=='set-member'{u:=y['a'];?u['a']==nn{?u['c']==nn{_fi_:= ['n':u['n'],'p':0,'i':y['i'],'s':u['z'],'o':k];f[u['n']]:=_fi_;xd[d['F'],_fi_];}}}
+                }
+                ?t=='set-member-stmt'{
+                    ?q['d']{u:=q['a'];?u['a']==nn{?u['c']==nn{_fi_:= ['n':u['n'],'p':q['p'],'i':q['i'],'s':u['z'],'o':k];f[u['n']]:=_fi_;xd[d['F'],_fi_];}}}
+                }
+                j=j1+;
+            }
+        }
+        i=i1+;
+    }
+    rv c;
+}
+
+##! Flatten one class's semantic inheritance metadata for a module boundary.
+##! Private members remain tagged so downstream children can reject private access
+##! and inherited-field redeclaration without exposing those names to parsing.
+~op c k {
+    d:=c[k];f:=[:];m:=[:];_fv_:=xc[];_mv_:=xc[];q:=k;_hn_:=0;
+    wl?q!=nn{
+        _has_:=in[q,c];?!_has_{q=nn;cl;}
+        _cd_:=c[q];
+        a:=_cd_['F'];n:=xb[a];i:=0;
+        wl?i<n{z:=xa[a,i];_hn_=in[z['n'],f];?!_hn_{f[z['n']]:=z;xd[_fv_,z];}i=i1+;}
+        a=_cd_['M'];n=xb[a];i=0;
+        wl?i<n{z:=xa[a,i];_hn_=in[z['n'],m];?!_hn_{m[z['n']]:=z;xd[_mv_,z];}i=i1+;}
+        q=_cd_['h'];
+    }
+    rv ['h':nn,'r':d['r'],'a':d['a'],'f':f,'m':m,'F':_fv_,'M':_mv_];
+}
+
+##! Inheritance-aware field / method lookup.
+-~ob c k n {
+    q:=k;
+    wl ?q!=nn {
+        _has_:=in[q,c];?_has_==@b|0|{z:=nn;rv z;}
+        d:=c[q];f:=d['f'];_found_:=in[n,f];
+        ?_found_{z:=f[n];rv z;}
+        q=d['h'];
+    }
+    z:=nn;rv z;
+}
+-~oc c k n {
+    q:=k;
+    wl ?q!=nn {
+        _has_:=in[q,c];?_has_==@b|0|{z:=nn;rv z;}
+        d:=c[q];m:=d['m'];_found_:=in[n,m];
+        ?_found_{z:=m[n];rv z;}
+        q=d['h'];
+    }
+    z:=nn;rv z;
+}
+
+##! Infer the known class of simple class-valued expressions/bindings.
+-~od x e {
+    k:=x['k'];
+    ?k=='class-call'{z:=x['n'];rv z;}
+    ?k=='var'{n:=x['n'];_has_:=in[n,e];?_has_{z:=e[n];rv z;}}
+    ?k=='ext'{n:=x['n'];_has_:=in[n,e];?_has_{z:=e[n];rv z;}}
+    ?k=='assign-expr'{z:=od[x['v'],e];rv z;}
+    z:=nn;rv z;
+}
+
+##! Validate one expression under class/static/constructor context.
+-~oe c x e k s u {
+    t:=x['k'];
+    ?t=='lit'{rv;}?t=='var'{rv;}?t=='ext'{rv;}?t=='default'{rv;}
+    ?t=='bin'{oe[c,x['a'],e,k,s,u];oe[c,x['b'],e,k,s,u];rv;}
+    ?t=='cmp'{oe[c,x['a'],e,k,s,u];oe[c,x['b'],e,k,s,u];rv;}
+    ?t=='logic'{oe[c,x['a'],e,k,s,u];oe[c,x['b'],e,k,s,u];rv;}
+    ?t=='bool'{oe[c,x['v'],e,k,s,u];rv;}?t=='not'{oe[c,x['v'],e,k,s,u];rv;}?t=='unary'{oe[c,x['v'],e,k,s,u];rv;}?t=='cast'{oe[c,x['v'],e,k,s,u];rv;}
+    ?t=='list'{of[c,x['a'],e,k,s,u];rv;}
+    ?t=='map'{a:=x['a'];n:=xb[a];i:=0;wl?i<n{q:=xa[a,i];oe[c,q['a'],e,k,s,u];oe[c,q['b'],e,k,s,u];i=i1+;}rv;}
+    ?t=='index'{oe[c,x['a'],e,k,s,u];oe[c,x['b'],e,k,s,u];rv;}
+    ?t=='slice'{oe[c,x['a'],e,k,s,u];q:=x['b'];?q!=nn{oe[c,q,e,k,s,u];}q=x['c'];?q!=nn{oe[c,q,e,k,s,u];}q=x['d'];?q!=nn{oe[c,q,e,k,s,u];}rv;}
+    ?t=='call'{of[c,x['a'],e,k,s,u];rv;}?t=='module-call'{of[c,x['a'],e,k,s,u];rv;}?t=='class-call'{of[c,x['a'],e,k,s,u];rv;}
+    ?t=='user-module-call'{of[c,x['a'],e,k,s,u];rv;}?t=='user-module-var'{rv;}?t=='user-module-class-call'{of[c,x['a'],e,k,s,u];rv;}?t=='user-module-class-member'{rv;}?t=='user-module-class-method'{of[c,x['a'],e,k,s,u];rv;}
+    ?t=='format'{a:=x['a'];n:=xb[a];i:=0;wl?i<n{q:=xa[a,i];?q['k']=='expr'{oe[c,q['v'],e,k,s,u];}i=i1+;}rv;}
+    ?t=='member'{
+        a:=x['a'];n:=x['n'];h:=x['c'];
+        if ?a!=nn {oe[c,a,e,k,s,u];r:=od[a,e];?r!=nn{f:=ob[c,r,n];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}}}}
+        ee {if ?h!=nn {f:=ob[c,h,n];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}}}
+            ee {?k!=nn{f:=ob[c,k,n];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}}}?s{?x['z']==0{vf[x,'instance field access is invalid inside static method'];}}}}
+        rv;
+    }
+    ?t=='method'{
+        of[c,x['a'],e,k,s,u];a:=x['r'];n:=x['n'];h:=x['c'];
+        if ?a!=nn {oe[c,a,e,k,s,u];r:=od[a,e];?r!=nn{m:=oc[c,r,n];?m!=nn{?m['p']{?k!=m['o']{vf[x,'cannot access private method'];}}}}}
+        ee {if ?h!=nn {m:=oc[c,h,n];?m!=nn{?m['p']{?k!=m['o']{vf[x,'cannot access private method'];}}}}
+            ee {?k!=nn{m:=oc[c,k,n];?m!=nn{?m['p']{?k!=m['o']{vf[x,'cannot access private method'];}}}}?s{?x['z']==0{?x['u']==0{vf[x,'instance method access is invalid inside static method'];}}}}}
+        rv;
+    }
+    ?t=='set-member'{
+        a:=x['a'];oe[c,a,e,k,s,u];oe[c,x['v'],e,k,s,u];n:=a['n'];r:=a['a'];h:=a['c'];
+        if ?r!=nn {q:=od[r,e];?q!=nn{f:=ob[c,q,n];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}?f['i']{?!u{vf[x,'cannot assign to immutable field'];}}}}}
+        ee {if ?h!=nn {f:=ob[c,h,n];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}?f['i']{?!u{vf[x,'cannot assign to immutable field'];}}}}
+            ee {?k!=nn{f:=ob[c,k,n];?f!=nn{?f['i']{?!u{vf[x,'cannot assign to immutable field'];}}}}}}
+        rv;
+    }
+    ?t=='assign-expr'{
+        oe[c,x['v'],e,k,s,u];r:=od[x['v'],e];a:=x['a'];n:=xb[a];i:=0;wl?i<n{q:=xa[a,i];?q['k']=='var'{if ?r!=nn{e[q['n']]:=r;}ee{h:=in[q['n'],e];?h{e[q['n']]=nn;}}}i=i1+;}rv;
+    }
+    rv;
+}
+
+-~of c a e k s u {n:=xb[a];i:=0;wl?i<n{oe[c,xa[a,i],e,k,s,u];i=i1+;}rv;}
+
+##! Validate one statement vector, carrying a simple known-class binding environment.
+-~og c v e k s u {
+    n:=xb[v];i:=0;wl?i<n{x:=xa[v,i];vd[x];t:=x['k'];
+        ?t=='expr'{oe[c,x['v'],e,k,s,u];i=i1+;cl;}
+        ?t=='assign'{oe[c,x['v'],e,k,s,u];r:=od[x['v'],e];a:=x['a'];z:=xb[a];j:=0;wl?j<z{q:=xa[a,j];?q['k']=='var'{if ?r!=nn{e[q['n']]:=r;}ee{h:=in[q['n'],e];?h{e[q['n']]=nn;}}}j=j1+;}i=i1+;cl;}
+        ?t=='export'{oe[c,x['v'],e,k,s,u];i=i1+;cl;}
+        ?t=='module-var-assign'{oe[c,x['v'],e,k,s,u];i=i1+;cl;}
+        ?t=='namespace'{i=i1+;cl;}
+        ?t=='set-member-stmt'{a:=x['a'];oe[c,a,e,k,s,u];oe[c,x['v'],e,k,s,u];_n0_:=a['n'];r:=a['a'];_h0_:=a['c'];_up_:=0;?x['d']==0{_up_=1;}
+            if ?r!=nn {_q0_:=od[r,e];?_q0_!=nn{f:=ob[c,_q0_,_n0_];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}?_up_{?f['i']{vf[x,'cannot assign to immutable field'];}}}}}
+            ee {if ?_h0_!=nn {f:=ob[c,_h0_,_n0_];?f!=nn{?f['p']{?k!=f['o']{vf[x,'cannot access private field'];}}?_up_{?f['i']{vf[x,'cannot assign to immutable field'];}}}}
+                ee {?k!=nn{f:=ob[c,k,_n0_];?f!=nn{?_up_{?f['i']{vf[x,'cannot assign to immutable field'];}}}}}}
+            i=i1+;cl;
+        }
+        ?t=='function'{q:=[:];og[c,x['v'],q,k,x['z'],0];i=i1+;cl;}
+        ?t=='destructor'{q:=[:];og[c,x['v'],q,k,0,0];i=i1+;cl;}
+        ?t=='class'{q:=[:];og[c,x['v'],q,x['n'],0,1];i=i1+;cl;}
+        ?t=='return'{of[c,x['v'],e,k,s,u];i=i1+;cl;}
+        ?t=='raise'{q:=x['v'];?q!=nn{oe[c,q,e,k,s,u];}i=i1+;cl;}
+        ?t=='if'{oe[c,x['c'],e,k,s,u];q:=[:];og[c,x['b'],q,k,s,u];a:=x['e'];z:=xb[a];j:=0;wl?j<z{r:=xa[a,j];oe[c,r['c'],e,k,s,u];q=[:];og[c,r['b'],q,k,s,u];j=j1+;}q=x['x'];?q!=nn{r:=[:];og[c,q,r,k,s,u];}i=i1+;cl;}
+        ?t=='while'{oe[c,x['c'],e,k,s,u];q:=[:];og[c,x['b'],q,k,s,u];i=i1+;cl;}
+        ?t=='for'{q:=x['q'];?q!=nn{oe[c,q,e,k,s,u];}q=x['a'];?q!=nn{oe[c,q,e,k,s,u];}q=x['z'];?q!=nn{oe[c,q,e,k,s,u];}q=x['d'];?q!=nn{oe[c,q,e,k,s,u];}q=[:];og[c,x['b'],q,k,s,u];i=i1+;cl;}
+        ?t=='try'{q:=[:];og[c,x['b'],q,k,s,u];a:=x['c'];?a!=nn{q=[:];og[c,a,q,k,s,u];}a=x['f'];?a!=nn{q=[:];og[c,a,q,k,s,u];}i=i1+;cl;}
+        ?t=='super-init'{of[c,x['a'],e,k,s,u];i=i1+;cl;}
+        i=i1+;
+    }rv;
+}
+
+##! Validate parent construction and inherited field redeclaration rules for one class.
+-~oh c x {
+    vd[x];k:=x['n'];h:=x['h'];b:=x['v'];n:=xb[b];i:=0;_sn_:=0;_an_:=0;_fs_:=0;
+    wl?i<n{q:=xa[b,i];vd[q];t:=q['k'];?t=='super-init'{_sn_=_sn_1+;}
+        _ac_:=1;?t=='comment'{_ac_=0;}?t=='function'{_ac_=0;}?t=='destructor'{_ac_=0;}
+        ?t=='expr'{y:=q['v'];?y['k']=='set-member'{z:=y['a'];?z['z']{_ac_=0;}}}
+        ?t=='set-member-stmt'{?q['d']{z:=q['a'];?z['z']{_ac_=0;}}}
+        ?_ac_{_an_=_an_1+;?_an_==1{?t=='super-init'{_fs_=1;}}}
+        i=i1+;
+    }
+    ?_sn_>1{vf[x,'class invokes its parent constructor more than once'];}
+    if ?h==nn {?_sn_>0{vf[x,'class has no parent but uses super constructor'];}}
+    ee {d:=c[h];?_sn_==0{?d['r']>0{vf[x,'parent requires constructor arguments'];}}?_sn_>0{?_fs_==0{vf[x,'explicit super constructor must be first child construction statement'];}
+            i=0;wl?i<n{q:=xa[b,i];vd[q];?q['k']=='super-init'{_sa_:=q['a'];_sc_:=xb[_sa_];?_sc_<d['r']{vf[q,'missing required parent constructor argument'];}?_sc_>d['a']{vf[q,'too many parent constructor arguments'];}j:=0;wl?j<_sc_{_sv_:=xa[_sa_,j];?_sv_['k']=='default'{?j<d['r']{vf[q,'default sentinel used for required parent constructor argument'];}}j=j1+;}}i=i1+;}
+        }
+        i=0;wl?i<n{q:=xa[b,i];vd[q];t:=q['k'];z:=nn;
+            ?t=='expr'{y:=q['v'];?y['k']=='set-member'{z=y['a'];}}
+            ?t=='set-member-stmt'{?q['d']{z:=q['a'];}}
+            ?z!=nn{?z['a']==nn{?z['c']==nn{?z['z']==0{f:=ob[c,h,z['n']];?f!=nn{vf[q,'inherited instance field redeclaration'];}}}}}
+            i=i1+;
+        }
+    }
+    rv;
+}
+
+##! Whole-program OOP legality pass layered after structural validation.
+##! `oy` accepts flattened direct-import class semantic records.
+~oy v s {
+    c:=oa[v];n:=0;i:=0;
+    ?s!=nn{n=xb[s];i=0;wl?i<n{q:=xa[s,i];c[q['n']]:=q['v'];i=i1+;}}
+    n=xb[v];i=0;wl?i<n{x:=xa[v,i];?x['k']=='class'{oh[c,x];}i=i1+;}
+    e:=[:];og[c,v,e,nn,0,0];rv c;
+}
+~oz v {_seed_:=nn;oy[v,_seed_];rv;}
+
+##! Parse and structurally validate one complete source program.
+~vc s {v:=wa[s];va[v,0,0,1,nn];oz[v];rv 1;}

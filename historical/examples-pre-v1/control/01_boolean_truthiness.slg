@@ -1,0 +1,9 @@
+//! Boolean values, comparison, precedence, and short-circuiting.
+a:=1 b:=0
+co?a+b co?a/b co?!b
+co?a==1 co?a!=b co?a>b
+s:=0
+?b+s:=1{co'bad'}
+cos
+?a/s:=2{co'or'}
+cos

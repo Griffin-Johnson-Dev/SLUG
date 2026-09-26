@@ -1,0 +1,454 @@
+##! SLUG native public compiler shell — Public CLI Contract v1.
+>'module_graph.slg'
+>'project_manifest.slg':PM
+>'codegen_stage2.slg'
+>'source_transform.slg'
+>'../v1/vector_core.slg'
+>'@std/sys':SY
+>'@std/fs':FS
+>'@std/time':TM
+>'@internal/cli':CL
+
+##! suffix test
+~pa p s {
+    n:=ln[p];m:=ln[s];
+    ?n<m { rv 0; }
+    ?p[n m -:] == s { rv 1; }
+    rv 0;
+}
+
+##! remove SLUG source suffix
+~pb p {
+    n:=ln[p];
+    ?pa[p,'.slgc'] { rv p[:n5-]; }
+    ?pa[p,'.slg'] { rv p[:n4-]; }
+    rv p;
+}
+
+##! directory prefix including final separator, or empty string
+~pc p {
+    n:=ln[p];i:=n;
+    wl ?i>0 {
+        i=i1-;c:=p[i];
+        ?c=='/' { rv p[:i1+]; }
+        ?c=='\\' { rv p[:i1+]; }
+    }
+    rv '';
+}
+
+##! usage failure
+~pd s {
+    CL.se[s];
+    CL.ex[64];
+    rv;
+}
+
+##! locate the Stage-2 runtime for generated C
+~pe {
+    r:=SY.ev['SLUG_RUNTIME'];
+    ?r!=nn { ?FS.fe[r] { rv r; } }
+    r='compiler/stage2/runtime_stage2.c';?FS.fe[r]{rv r;}
+    r='runtime_stage2.c';?FS.fe[r]{rv r;}
+    e:=CL.ep[];d:=pc[e];
+    r=d 'runtime_stage2.c' +;?FS.fe[r]{rv r;}
+    r=d '../lib/slug/1.0/runtime_stage2.c' +;?FS.fe[r]{rv r;}
+    r=d '../lib/slug/runtime_stage2.c' +;?FS.fe[r]{rv r;}
+    r=d '../share/slug/runtime_stage2.c' +;?FS.fe[r]{rv r;}
+    CL.se['slug: required runtime support file is unavailable'];
+    CL.ex[69];
+    rv '';
+}
+
+##! emit generated C
+~pf p o {
+    g:=bg[p];
+    r:=pe[];
+    cy[g,r,o];
+    rv;
+}
+
+##! native executable default output
+~pg p {
+    o:=pb[p];
+    k:=SY.pf[];
+    ?k['os']=='windows' { o=o '.exe'+; }
+    rv o;
+}
+
+##! select C compiler
+~ph x {
+    ?x!=nn { rv x; }
+    c:=SY.ev['CC'];?c!=nn{rv c;}
+    k:=SY.pf[];
+    ?k['os']=='windows' { rv 'clang'; }
+    rv 'cc';
+}
+
+##! invoke host C compiler. Compiler/tool failures have public host/internal classes.
+~pi c o x {
+    h:=ph[x];
+    k:=SY.pf[];
+    a:=[h,c,'-std=c11','-O2','-o',o,'-lm'];
+    ?k['os']=='windows' {
+        a=[h,c,'-std=c11','-O2','-o',o,'-lws2_32','-lshell32','-luser32','-lgdi32','-lwinmm'];
+    }
+    ?FS.fe[o] { FS.rm[o]; }
+    q:=0;
+    tr { q=SY.pc[a]; }
+    ca e {
+        CL.se['slug: required host C compiler is unavailable'];
+        CL.ex[69];
+    }
+    ?q==127 {
+        CL.se['slug: required host C compiler is unavailable'];
+        CL.ex[69];
+    }
+    ?q!=0 {
+        CL.se['slug: host C compilation failed'];
+        CL.ex[70];
+    }
+    rv;
+}
+
+##! build native executable. keep=true preserves generated C as <output>.c.
+~pj p o x k {
+    c:=o '.slug.c'+;
+    ?k { c=o '.c'+; }
+    pf[p,c];
+    pi[c,o,x];
+    ?!k { ?FS.fe[c] { FS.rm[c]; } }
+    rv;
+}
+
+##! JSON string escaping
+~pk v {
+    s:=@s|v|;o:='';n:=ln[s];i:=0;
+    wl ?i<n {
+        c:=s[i];
+        if ?c=='\\' { o=o '\\\\'+; }
+        ei ?c=='"' { o=o '\\"'+; }
+        ei ?c=='\n' { o=o '\\n'+; }
+        ei ?c=='\r' { o=o '\\r'+; }
+        ei ?c=='\t' { o=o '\\t'+; }
+        ee { o=o c+; }
+        i=i1+;
+    }
+    rv o;
+}
+
+##! Find source path for a diagnostic from public argv.
+~pl a {
+    ?ln[a]>=2 {
+        c:=a[0];x:=a[1];
+        ?c=='check' { rv x; }
+        ?c=='build' { rv x; }
+        ?c=='run' { rv x; }
+        ?c=='fmt' { rv x; }
+        ?c=='crush' { rv x; }
+        ?c=='expand' { rv x; }
+        ?c=='emit-c' { rv x; }
+        ?c=='tooling-check' { rv x; }
+        ?c=='tooling-format' { rv x; }
+    }
+    rv '';
+}
+
+##! Whether this invocation requested JSON diagnostics.
+~pm a {
+    n:=ln[a];i:=0;
+    wl ?i<n {
+        ?a[i]=='--diagnostic-format' {
+            ?i1+<n { ?a[i1+]=='json' { rv 1; } }
+        }
+        i=i1+;
+    }
+    rv 0;
+}
+
+##! Report a caught source/compiler diagnostic using the frozen core schema.
+~pn e a {
+    f:=pl[a];m:=pk[e];
+    ?pm[a] {
+        q:='\{"schema":1,"severity":"error","kind":"compile","message":"' m +;
+        q=q '","file":"' +;q=q pk[f]+;
+        q=q '","span":\{"start":\{"line":1,"column":1\},"end":\{"line":1,"column":1\}\}\}' +;
+        CL.se[q];
+        rv;
+    }
+    q:='slug: ' f +;?f!=''{q=q ': '+;}q=q @s|e|+;CL.se[q];
+    rv;
+}
+
+##! Atomic text write through sibling temporary.
+~po p s {
+    t:=p '.slug-tmp'+;
+    ?FS.fe[t] { FS.rm[t]; }
+    FS.fw[t,s];
+    FS.mv[t,p];
+    rv;
+}
+
+##! Public help.
+~pp {
+    co['SLUG compiler 1.0.0 — language 1.0'];
+    co['usage: slug <command> [options]'];
+    co['  slug check [file] [--diagnostic-format human|json]'];
+    co['  slug build [file] [-o <output>] [--cc <compiler>] [--keep-c] [--diagnostic-format human|json]'];
+    co['  slug run [file] [--cc <compiler>] [-- <program-args>...]'];
+    co['  slug fmt <file> [--check] [--write | -o <output>]'];
+    co['  slug crush <file> [-o <output>]'];
+    co['  slug expand <file> [-o <output>]'];
+    co['  slug tooling-info'];
+    co['  slug project-info [source-file]'];
+    co['  slug tooling-check <logical-path> [--diagnostic-format human|json]'];
+    co['  slug tooling-format <logical-path>'];
+    co['  slug tooling-locate <logical-path>'];
+    co['  slug --version'];
+    co['  slug --language-version'];
+    co['  slug --help'];
+    rv;
+}
+
+##! Validate diagnostic format value.
+~pq x {
+    ?x=='human' {rv;}
+    ?x=='json' {rv;}
+    pd['slug: --diagnostic-format must be human or json'];
+    rv;
+}
+
+##! Resolve the current project entry for a source-optional command.
+~pz {
+    c:=PM.gl[SY.cw[],0];?c==nn{pd['slug: no slug.json project manifest found'];}
+    p:=PM.gm[c];_ep_:=FS.fe[p];?!_ep_{pd['slug: project entry source is unavailable'];}
+    rv ['p':p,'c':c];
+}
+
+##! check command
+~pr a {
+    n:=ln[a];p:=nn;i:=1;
+    ?n>1{?a[1]!='--diagnostic-format'{p=a[1];i=2;}}
+    ?p==nn{z:=pz[];p=z['p'];}
+    wl ?i<n {
+        ?a[i]=='--diagnostic-format' {
+            ?i1+>=n{pd['slug: missing --diagnostic-format value'];}
+            pq[a[i1+]];i=i2+;cl
+        }
+        pd['usage: slug check [file] [--diagnostic-format human|json]'];
+    }
+    g:=bg[p];
+    rv;
+}
+
+##! build command
+~ps a {
+    n:=ln[a];p:=nn;o:=nn;x:=nn;k:=0;i:=1;c:=nn;
+    ?n>1{t:=a[1];_op_:=0;?t=='-o'{_op_=1;}?t=='--cc'{_op_=1;}?t=='--keep-c'{_op_=1;}?t=='--diagnostic-format'{_op_=1;}?!_op_{p=t;i=2;}}
+    ?p==nn{z:=pz[];p=z['p'];c=z['c'];}
+    wl ?i<n {
+        t:=a[i];
+        if ?t=='-o' {
+            ?i1+>=n{pd['slug: missing -o value'];}o=a[i1+];i=i2+;
+        }
+        ei ?t=='--cc' {
+            ?i1+>=n{pd['slug: missing --cc value'];}x=a[i1+];i=i2+;
+        }
+        ei ?t=='--keep-c' { k=1;i=i1+; }
+        ei ?t=='--diagnostic-format' {
+            ?i1+>=n{pd['slug: missing --diagnostic-format value'];}pq[a[i1+]];i=i2+;
+        }
+        ee { pd['usage: slug build [file] [-o <output>] [--cc <compiler>] [--keep-c] [--diagnostic-format human|json]']; }
+    }
+    ?o==nn{
+        if ?c!=nn{PM.gp[c];o=PM.go[c];_pf_:=SY.pf[];?_pf_['os']=='windows'{o=o '.exe'+;}}
+        ee{o=pg[p];}
+    }
+    ?o==p{pd['slug: build output may not overwrite source'];}
+    pj[p,o,x,k];
+    rv;
+}
+
+##! run command
+~pt a {
+    n:=ln[a];p:=nn;x:=nn;i:=1;z:=0 1 -;
+    ?n>1{t:=a[1];?t!='--cc'{?t!='--'{p=t;i=2;}}}
+    ?p==nn{_pr_:=pz[];p=_pr_['p'];}
+    wl ?i<n {
+        t:=a[i];
+        if ?t=='--' { z=i;i=n; }
+        ei ?t=='--cc' {
+            ?i1+>=n{pd['slug: missing --cc value'];}x=a[i1+];i=i2+;
+        }
+        ee { pd['usage: slug run [file] [--cc <compiler>] [-- <program-args>...]']; }
+    }
+    o:=pb[p] '.slug-run-' +;o=o @s|TM.mt[]|+;
+    k:=SY.pf[];?k['os']=='windows'{o=o '.exe'+;}
+    pj[p,o,x,0];
+    q:=0;
+    if ?z>=0 {
+        r:=a[z:];r[0]=o;
+        ?k['os']!='windows' { ?pc[o]=='' { r[0]='./' o +; } }
+        tr { q=SY.pc[r]; }
+        ca e { ?FS.fe[o]{FS.rm[o];}CL.se['slug: failed to launch compiled program'];CL.ex[69]; }
+    }
+    ee {
+        e:=o;?k['os']!='windows'{?pc[o]==''{e='./' o +;}}
+        tr { q=SY.pc[[e]]; }
+        ca h { ?FS.fe[o]{FS.rm[o];}CL.se['slug: failed to launch compiled program'];CL.ex[69]; }
+    }
+    ?FS.fe[o]{FS.rm[o];}
+    CL.ex[q];
+    rv;
+}
+
+##! fmt command
+~pu a {
+    n:=ln[a];?n<2{pd['usage: slug fmt <file> [--check] [--write | -o <output>]'];}
+    p:=a[1];o:=nn;w:=0;k:=0;i:=2;
+    wl ?i<n {
+        t:=a[i];
+        if ?t=='--check' { k=k1+;i=i1+; }
+        ei ?t=='--write' { w=w1+;i=i1+; }
+        ei ?t=='-o' { ?i1+>=n{pd['slug: missing -o value'];}o=a[i1+];i=i2+; }
+        ee { pd['usage: slug fmt <file> [--check] [--write | -o <output>]']; }
+    }
+    _m_:=k w +;?o!=nn{_m_=_m_1+;}?_m_>1{pd['slug: --check, --write, and -o are mutually exclusive'];}
+    s:=FS.ft[p];f:=te[s];?tf[s,f,0]==0{CL.se['slug: internal formatter token mismatch'];CL.ex[70];}
+    ?k { ?s==f{rv;}CL.ex[65]; }
+    ?w { po[p,f];rv; }
+    ?o!=nn { ?o==p{pd['slug: use --write to replace source'];}po[o,f];rv; }
+    CL.so[f];
+    rv;
+}
+
+##! crush command
+~pv a {
+    n:=ln[a];?n<2{pd['usage: slug crush <file> [-o <output>]'];}
+    p:=a[1];o:=nn;i:=2;
+    wl ?i<n {
+        ?a[i]=='-o' { ?i1+>=n{pd['slug: missing -o value'];}o=a[i1+];i=i2+;cl }
+        pd['usage: slug crush <file> [-o <output>]'];
+    }
+    ?o==nn{o=pb[p] '.slgc'+;}
+    ?o==p{pd['slug: crush may not overwrite source'];}
+    s:=FS.ft[p];c:=td[s];?tf[s,c,1]==0{CL.se['slug: internal crusher token mismatch'];CL.ex[70];}
+    po[o,c];
+    rv;
+}
+
+##! expand command
+~pw a {
+    n:=ln[a];?n<2{pd['usage: slug expand <file> [-o <output>]'];}
+    p:=a[1];o:=nn;i:=2;
+    wl ?i<n {
+        ?a[i]=='-o' { ?i1+>=n{pd['slug: missing -o value'];}o=a[i1+];i=i2+;cl }
+        pd['usage: slug expand <file> [-o <output>]'];
+    }
+    s:=FS.ft[p];f:=te[s];?tf[s,f,0]==0{CL.se['slug: internal expander token mismatch'];CL.ex[70];}
+    ?o==nn{CL.so[f];rv;}
+    ?o==p{pd['slug: expand may not overwrite source'];}
+    po[o,f];
+    rv;
+}
+
+##! Stable machine-readable tooling capability handshake.
+~qa a {
+    ?ln[a]!=1{pd['usage: slug tooling-info'];}
+    co['\{"schema":1,"compiler_version":"1.0.0","language_version":"1.0","cli_contract":1,"manifest_schema":1,"diagnostic_schema":1,"capabilities":\{"fmt":true,"crush":true,"expand":true,"json_diagnostics":true,"project_discovery":true,"local_dependencies":true,"stdin_overlay":true,"failure_locator":true,"semantic_provenance":true,"lexical_provenance":true,"lsp":true\}\}'];
+    rv;
+}
+
+##! Stable machine-readable discovered-project context for editors/tooling.
+~qb a {
+    n:=ln[a];?n>2{pd['usage: slug project-info [source-file]'];}
+    c:=nn;
+    if ?n==2 { c=PM.gl[a[1],1]; }
+    ee { c=PM.gl[SY.cw[],0]; }
+    ?c==nn { co['\{"schema":1,"found":false\}'];rv; }
+    m:=c['manifest'];r:=c['root'];x:=c['name'];e:=c['entry'];p:=PM.gm[c];d:=ln[c['dependencies']];
+    q:='\{"schema":1,"found":true,"manifest":"' pk[m] +;
+    q=q '","root":"' +;q=q pk[r]+;
+    q=q '","name":"' +;q=q pk[x]+;
+    q=q '","entry":"' +;q=q pk[e]+;
+    q=q '","entry_path":"' +;q=q pk[p]+;
+    q=q '","dependency_count":' +;q=q @s|d|+;q=q '\}' +;
+    co[q];rv;
+}
+
+##! Read normalized tooling source from stdin without adding a runtime capability.
+~qe {
+    s:='';
+    wl ?1 {
+        x:=ci[];?x==nn{bl}
+        s=s x+;s=s '\n'+;
+    }
+    rv s;
+}
+
+##! Editor/tooling check: read unsaved root source from stdin, retain logical path for imports/project discovery.
+~qc a {
+    n:=ln[a];?n<2{pd['usage: slug tooling-check <logical-path> [--diagnostic-format human|json]'];}
+    p:=a[1];i:=2;
+    wl ?i<n {
+        ?a[i]=='--diagnostic-format' {
+            ?i1+>=n{pd['slug: missing --diagnostic-format value'];}
+            pq[a[i1+]];i=i2+;cl
+        }
+        pd['usage: slug tooling-check <logical-path> [--diagnostic-format human|json]'];
+    }
+    s:=qe[];g:=bu[p,s];rv;
+}
+
+##! Editor/tooling format: transform stdin source without touching the logical file.
+~qd a {
+    ?ln[a]!=2{pd['usage: slug tooling-format <logical-path>'];}
+    s:=qe[];f:=te[s];?tf[s,f,0]==0{CL.se['slug: internal formatter token mismatch'];CL.ex[70];}
+    CL.so[f];rv;
+}
+
+##! Failure-only editor diagnostic locator. Reads the same stdin overlay as
+##! tooling-check but never participates in successful compilation.
+~qs a {
+    ?ln[a]!=2{pd['usage: slug tooling-locate <logical-path>'];}
+    p:=a[1];s:=qe[];z:=bw[p,s];_found_:=z['found'];
+    ?!_found_{co['0'];rv;}
+    l:=z['line'];c:=z['column'];_el_:=z['end_line'];_ec_:=z['end_column'];t:=z['token'];
+    co['1'];co[l];co[c];co[_el_];co[_ec_];co[t];rv;
+}
+
+##! developer-only generated-C command
+~px a {
+    ?ln[a]!=3{pd['usage: slug emit-c <file> <output.c>'];}
+    ?a[1]==a[2]{pd['slug: emit-c output may not overwrite source'];}
+    pf[a[1],a[2]];
+    rv;
+}
+
+##! Public dispatch.
+~py a {
+    n:=ln[a];?n==0{pp[];rv;}
+    c:=a[0];
+    ?c=='--version' { ?n!=1{pd['usage: slug --version'];}co['1.0.0'];rv; }
+    ?c=='version' { ?n!=1{pd['usage: slug --version'];}co['1.0.0'];rv; }
+    ?c=='--language-version' { ?n!=1{pd['usage: slug --language-version'];}co['1.0'];rv; }
+    ?c=='--help' { ?n!=1{pd['usage: slug --help'];}pp[];rv; }
+    ?c=='help' { ?n!=1{pd['usage: slug help'];}pp[];rv; }
+    ?c=='check' {pr[a];rv;}
+    ?c=='build' {ps[a];rv;}
+    ?c=='run' {pt[a];rv;}
+    ?c=='fmt' {pu[a];rv;}
+    ?c=='crush' {pv[a];rv;}
+    ?c=='expand' {pw[a];rv;}
+    ?c=='tooling-info' {qa[a];rv;}
+    ?c=='project-info' {qb[a];rv;}
+    ?c=='tooling-check' {qc[a];rv;}
+    ?c=='tooling-format' {qd[a];rv;}
+    ?c=='tooling-locate' {qs[a];rv;}
+    ?c=='emit-c' {px[a];rv;}
+    pd['slug: unknown command'];
+    rv;
+}
+
+a:=SY.av[];
+tr { py[a]; }
+ca e { pn[e,a];CL.ex[65]; }

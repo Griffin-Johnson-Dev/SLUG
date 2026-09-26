@@ -1,0 +1,11 @@
+##! Native Stage-2 module-aware C generation driver.
+>'module_graph.slg'
+>'codegen_stage2.slg'
+a := av[];
+n := ln[a];
+?n < 3 { er 'usage: codegen-stage2 <canonical-root> <runtime-c> <output-c>'; }
+p := a[0];
+r := a[1];
+o := a[2];
+g := bg[p];
+cy[g, r, o];

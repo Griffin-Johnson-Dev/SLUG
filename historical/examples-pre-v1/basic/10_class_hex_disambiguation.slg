@@ -1,0 +1,4 @@
+//! BASIC 10 — known class AB makes ABA$ parse as AB(A$), not 0xABA
+#AB x {
+}
+a := ABA$;

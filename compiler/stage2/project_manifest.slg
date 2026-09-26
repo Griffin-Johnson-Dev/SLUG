@@ -1,0 +1,181 @@
+##! K9E project-manifest parser and deterministic local dependency resolver.
+##! The manifest is strict JSON schema 1. Project/dependency paths are canonical
+##! forward-slash relative paths; no filesystem search or implicit suffixing occurs.
+>'@std/fs':FS
+
+##! Skip JSON whitespace in mutable parser state ['s':text,'i':offset].
+-~ga q {
+    s:=q['s'];i:=q['i'];n:=ln[s];
+    wl ?i<n {
+        c:=s[i];
+        ?in[c,' \n\r\t'] { i=i1+;cl }
+        bl;
+    }
+    q['i']=i;rv;
+}
+
+##! Consume one exact JSON punctuation character.
+-~gb q x {
+    ga[q];s:=q['s'];i:=q['i'];
+    ?i>=ln[s] { er 'project manifest ended unexpectedly'; }
+    ?s[i]!=x { er 'invalid project manifest JSON punctuation'; }
+    q['i']=i1+;rv;
+}
+
+##! Parse one manifest JSON string. K9E deliberately accepts only path-safe JSON
+##! escapes: quote, reverse solidus and solidus. Control/unicode escapes are rejected
+##! because manifest names/paths have a narrower canonical ASCII/path contract.
+-~gc q {
+    ga[q];s:=q['s'];i:=q['i'];n:=ln[s];
+    ?i>=n { er 'project manifest ended before string'; }
+    ?s[i]!='"' { er 'project manifest expected string'; }
+    i=i1+;o:='';
+    wl ?i<n {
+        c:=s[i];
+        ?c=='"' { q['i']=i1+;rv o; }
+        ?c=='\\' {
+            i=i1+;?i>=n{er 'project manifest has incomplete escape';}
+            c=s[i];
+            ?c=='"' {o=o '"'+;i=i1+;cl}
+            ?c=='\\' {o=o '\\'+;i=i1+;cl}
+            ?c=='/' {o=o '/'+;i=i1+;cl}
+            er 'project manifest uses unsupported string escape';
+        }
+        ?c=='\n' { er 'project manifest string contains newline'; }
+        ?c=='\r' { er 'project manifest string contains carriage return'; }
+        ?c=='\t' { er 'project manifest string contains tab'; }
+        o=o c+;i=i1+;
+    }
+    er 'project manifest has unterminated string';
+}
+
+##! Canonical package/dependency name: [a-z][a-z0-9-]*, max 64 bytes/codepoints.
+-~gd x {
+    n:=ln[x];?n==0{rv 0;}?n>64{rv 0;}
+    c:=x[0];h:=in[c,'abcdefghijklmnopqrstuvwxyz'];?!h{rv 0;}
+    i:=1;wl?i<n{c=x[i];h=in[c,'abcdefghijklmnopqrstuvwxyz0123456789-'];?!h{rv 0;}i=i1+;}
+    rv 1;
+}
+
+##! Canonical project-relative forward-slash path. Empty, absolute, drive-like,
+##! repeated separators, dot segments and backslashes are rejected.
+-~ge x {
+    n:=ln[x];?n==0{rv 0;}?x[0]=='/'{rv 0;}?in['\\',x]{rv 0;}?in[':',x]{rv 0;}
+    i:=0;a:=0;b:=0;
+    wl ?i<=n {
+        ?i==n { b=i; }
+        ee { ?x[i]=='/' {b=i;} ee {i=i1+;cl} }
+        ?b==a {rv 0;}
+        p:=x[a:b];?p=='.'{rv 0;}?p=='..'{rv 0;}
+        ?i==n {bl;}
+        a=i1+;i=i1+;
+    }
+    rv 1;
+}
+
+##! Parse dependency object: {"name":"project/relative/root",...}.
+-~gf q {
+    gb[q,'\{'];m:=[:];ga[q];s:=q['s'];i:=q['i'];
+    ?i<ln[s] { ?s[i]=='\}' {q['i']=i1+;rv m;} }
+    f:=1;
+    wl ?1 {
+        ?!f {gb[q,','];}f=0;
+        k:=gc[q];_vk_:=gd[k];?!_vk_{er 'invalid project dependency name';}
+        h:=in[k,m];?h{er 'duplicate project dependency name';}
+        gb[q,':'];v:=gc[q];_vp_:=ge[v];?!_vp_{er 'invalid project dependency root';}
+        m[k]:=v;ga[q];i=q['i'];
+        ?i>=ln[q['s']]{er 'project manifest ended inside dependencies';}
+        ?q['s'][i]=='\}'{q['i']=i1+;rv m;}
+    }
+}
+
+##! Parse strict schema-1 manifest text.
+-~gg s {
+    q:=['s':s,'i':0];gb[q,'\{'];m:=[:];ga[q];i:=q['i'];
+    ?i<ln[s]{?s[i]=='\}'{er 'project manifest is missing required fields';}}
+    f:=1;
+    wl ?1 {
+        ?!f{gb[q,','];}f=0;
+        k:=gc[q];
+        ?k!='schema'{?k!='name'{?k!='entry'{?k!='dependencies'{er 'unknown project manifest field';}}}}
+        h:=in[k,m];?h{er 'duplicate project manifest field';}
+        gb[q,':'];
+        if ?k=='schema' {
+            ga[q];i=q['i'];?i>=ln[s]{er 'project manifest missing schema value';}
+            ?s[i]!='1'{er 'project manifest schema must be 1';}
+            q['i']=i1+;m[k]:=1;
+        }
+        ei ?k=='dependencies' {m[k]:=gf[q];}
+        ee {m[k]:=gc[q];}
+        ga[q];i=q['i'];?i>=ln[s]{er 'project manifest ended before object close';}
+        ?s[i]=='\}'{q['i']=i1+;bl;}
+    }
+    ga[q];?q['i']!=ln[s]{er 'project manifest has trailing content';}
+    _hs_:=in['schema',m];?!_hs_{er 'project manifest requires schema';}
+    _hn_:=in['name',m];?!_hn_{er 'project manifest requires name';}
+    _he_:=in['entry',m];?!_he_{er 'project manifest requires entry';}
+    ?m['schema']!=1{er 'project manifest schema must be 1';}
+    _vn_:=gd[m['name']];?!_vn_{er 'invalid project name';}
+    _ve_:=ge[m['entry']];?!_ve_{er 'invalid project entry path';}
+    e:=m['entry'];n:=ln[e];?n<4{er 'project entry must name exact .slg source';}
+    ?e[n4-:]!='.slg'{er 'project entry must name exact .slg source';}
+    _hd_:=in['dependencies',m];?!_hd_{m['dependencies']:=[:];}
+    rv m;
+}
+
+##! Directory prefix including final slash/backslash, or empty for cwd-relative path.
+-~gh p {
+    n:=ln[p];i:=n;wl?i>0{i=i1-;c:=p[i];?c=='/'{rv p[:i1+];}?c=='\\'{rv p[:i1+];}}
+    rv '';
+}
+
+##! Parent directory of a directory prefix. Empty means process cwd-relative root.
+-~gi d {
+    n:=ln[d];?n==0{rv '';}
+    e:=n;wl?e>0{c:=d[e1-];?c=='/'{e=e1-;cl}?c=='\\'{e=e1-;cl}bl;}
+    ?e==0{rv '';}
+    rv gh[d[:e]];
+}
+
+##! Discover slug.json upward. p is a source path when f=true, a directory otherwise.
+-~gj p f {
+    d:='';if ?f {d=gh[p];}
+    ee {d=p;n:=ln[d];?n>0{c:=d[n1-];?c!='/'{?c!='\\'{d=d '/'+;}}}}
+    wl ?1 {
+        m:=d 'slug.json'+;?FS.fe[m]{rv m;}
+        ?d==''{rv nn;}
+        u:=gi[d];?u==d{rv nn;}d=u;
+    }
+}
+
+##! Load and attach filesystem identity to one discovered manifest.
+-~gk p {
+    m:=gg[FS.ft[p]];m['manifest']:=p;m['root']:=gh[p];rv m;
+}
+
+##! Discover project context from source/file or directory. Returns null if absent.
+~gl p f { m:=gj[p,f];?m==nn{rv nn;}rv gk[m]; }
+
+##! Exact project entry source path.
+~gm m { a:=m['root'];b:=m['entry'];rv a b +; }
+
+##! Resolve one @dep/<name>/<exact-file.slg> URI using the root manifest.
+~gn m p q {
+    ?m==nn{er 'dependency import requires a discovered slug.json project manifest';}
+    n:=ln[q];?n<7{er 'dependency import must be @dep/<name>/<exact-file.slg>';}
+    ?q[:5]!='@dep/'{er 'internal dependency resolver received non-dependency URI';}
+    i:=5;wl?i<n{?q[i]=='/'{bl;}i=i1+;}
+    ?i>=n{er 'dependency import must be @dep/<name>/<exact-file.slg>';}
+    a:=q[5:i];r:=q[i1+:];_va_:=gd[a];?!_va_{er 'invalid dependency import name';}_vr_:=ge[r];?!_vr_{er 'invalid dependency import path';}
+    z:=ln[r];?z<4{er 'dependency import must name exact .slg source';}?r[z4-:]!='.slg'{er 'dependency import must name exact .slg source';}
+    d:=m['dependencies'];_ha_:=in[a,d];?!_ha_{er 'undeclared project dependency';}
+    x:=m['root'];y:=d[a];x=x y +;x=x '/' +;x=x r +;rv x;
+}
+
+##! Canonical project-owned default build output, without platform suffix.
+~go m { a:=m['root'];a=a 'build/' +;b:=m['name'];rv a b +; }
+
+##! Ensure the canonical build directory exists.
+~gp m {
+    d:=m['root'] 'build'+;?FS.fe[d]{rv d;}FS.md[d];rv d;
+}

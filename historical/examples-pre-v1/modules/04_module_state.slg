@@ -1,0 +1,5 @@
+//! Imported module state initializes once and persists between calls.
+>'lib/state':m
+co m.gt[]
+co m.nx[]
+co m.nx[]

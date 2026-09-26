@@ -1,0 +1,7 @@
+//! BASIC 05 — exponentiation, unary negation inside RPN, and the 0^0 rule
+a := 2 3 ^;
+b := 2 3 - ^;
+c := 0 0 ^;
+co a;
+co b;
+co c;

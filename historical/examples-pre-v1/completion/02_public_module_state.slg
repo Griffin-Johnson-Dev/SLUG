@@ -1,0 +1,5 @@
+//! v0.1.5 public module bindings share one typed state cell through an alias.
+>'state.slg':MA
+co[MA.x]
+co[MA.up[]]
+co[MA.x]

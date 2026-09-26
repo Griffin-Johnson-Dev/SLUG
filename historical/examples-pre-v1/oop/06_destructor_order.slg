@@ -1,0 +1,5 @@
+//! OOP 06 — destruction unwinds child before parent at process shutdown.
+#DP {~-{co'parent'}}
+#DC<DP {~-{co'child'}}
+a:=DC[]
+co'alive'

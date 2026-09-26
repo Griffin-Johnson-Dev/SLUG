@@ -1,0 +1,419 @@
+##! SLUG Stage 2 module graph and linker foundation.
+##! Unlike Stage 1, modules retain identity.  Nothing is flattened into one function namespace.
+>'../v1/vector_core.slg'
+>'../v1/program_api.slg'
+>'../v1/semantic_core.slg'
+>'project_manifest.slg':PM
+>'@std/fs':FS
+
+##! Directory prefix of a path, including the final separator.
+~bc p {
+    n := ln[p];
+    i := n;
+    wl ?i > 0 {
+        i = i 1 -;
+        c := p[i];
+        y := 0;
+        ?c == '/' { y = 1; }
+        ?c == '\\' { y = 1; }
+        ?y {
+            e := i 1 +;
+            z := p[:e];
+            rv z;
+        }
+    }
+    rv '';
+}
+
+##! Scan symbols owned by one module.  Stage 2 keeps these separate from imported names.
+~bd a {
+    f := [:];
+    g := [:];
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        x := vg[a, i];
+        k := x['k'];
+        ?k == 'function' {
+            q := x['n'];
+            y := in[q, f];
+            ?y { er 'duplicate function in Stage-2 module'; }
+            f[q] := 1;
+        }
+        y := 0;
+        ?k == 'define' { y = 1; }
+        ?y {
+            q := x['n'];
+            g[q] := 1;
+        }
+        _mu_ := 0; ?k == 'define-multi' { _mu_=1; }
+        ?_mu_ { _ma_:=x['a'];_mn_:=vl[_ma_];_mi_:=0;wl?_mi_<_mn_{q:=vg[_ma_,_mi_];g[q]:=1;_mi_=_mi_1+;} }
+        i = i 1 +;
+    }
+    z := ['f': f, 'g': g];
+    rv z;
+}
+
+##! Compact callable/constructor signature from audited parameter metadata.
+-~bp a x {
+    n:=vl[a];i:=0;r:=0;wl?i<n{q:=vg[a,i];d:=q['d'];?d==nn{r=r1+;}i=i1+;}
+    m:=n;z:=1;?x!=nn{m=2147483647$;z=0;}rv ['a':r,'b':m,'d':z];
+}
+
+##! Public class metadata needed by aliased/direct module parsing.
+-~bq x s {
+    _sig_:=bp[x['a'],nn];_sm_:=[:];_sf_:=[:];b:=x['v'];n:=vl[b];i:=0;
+    wl?i<n{q:=vg[b,i];k:=q['k'];
+        ?k=='function'{_qz_:=q['z'];?_qz_{_qp_:=q['p'];?!_qp_{_sm_[q['n']]:=bp[q['a'],q['x']];}}}
+        ?k=='expr'{_ev_:=q['v'];?_ev_['k']=='set-member'{t:=_ev_['a'];?t['z']{_sf_[t['n']]:=['i':_ev_['i']];}}}
+        i=i1+;
+    }
+    _se_:=op[s,x['n']];rv ['a':_sig_['a'],'b':_sig_['b'],'d':_sig_['d'],'m':_sm_,'g':_sf_,'e':_se_];
+}
+
+##! Extract one module's public user-source surface for alias-aware parsing.
+-~br u p s {
+    f:=[:];g:=[:];c:=[:];n:=vl[u];i:=0;
+    wl?i<n{x:=vg[u,i];k:=x['k'];
+        ?k=='function'{_pr_:=x['p'];?!_pr_{f[x['n']]:=bp[x['a'],x['x']];}}
+        ?k=='export'{_imm_:=0;?x['o']=='::='{_imm_=1;}g[x['n']]:=['i':_imm_];}
+        ?k=='class'{_pr_:=x['p'];?!_pr_{c[x['n']]:=bq[x,s];}}
+        i=i1+;
+    }
+    rv ['s':0,'i':p,'f':f,'g':g,'c':c];
+}
+
+##! Add public direct-import class signatures to a parser seed map.
+-~bs m h e {
+    a:=m['aud'];n:=vl[a];i:=0;_pc_:=m['pub']['c'];
+    wl?i<n{x:=vg[a,i];?x['k']=='class'{_pr_:=x['p'];?!_pr_{q:=x['n'];_has_:=in[q,h];?_has_{er'direct import collision for Stage-2 class';}_cm_:=_pc_[q];h[q]:=_cm_;vp[e,['n':q,'v':_cm_['e']]];}}i=i1+;}rv;
+}
+
+##! Lower audited-v1 AST into the compact Stage-2 backend IR.
+##! This is an explicit compatibility boundary: semantic validation runs on the audited AST,
+##! while the existing ordered C backend consumes only this smaller IR.
+~bi x {
+    k:=x['k'];?k=='var'{n:=x['n'];rv n;}?k=='ext'{n:=x['n'];rv n;}
+    er 'Stage-2 lowerer: assignment target is not a simple name';
+}
+~bk a {
+    o:=vn[];n:=vl[a];i:=0;wl?i<n{vp[o,bj[vg[a,i]]];i=i1+;}rv o;
+}
+~bj x {
+    k:=x['k'];
+    ?k=='lit'{rv ['k':'lit','t':x['t'],'r':x['r']];}
+    ?k=='default'{rv ['k':'default'];}
+    ?k=='var'{rv ['k':'var','n':x['n']];}
+    ?k=='ext'{rv ['k':'var','n':x['n']];}
+    ?k=='bin'{rv ['k':'bin','o':x['o'],'a':bj[x['a']],'b':bj[x['b']]];}
+    ?k=='cmp'{rv ['k':'cmp','o':x['o'],'a':bj[x['a']],'b':bj[x['b']]];}
+    ?k=='logic'{rv ['k':'logic','o':x['o'],'a':bj[x['a']],'b':bj[x['b']]];}
+    ?k=='bool'{rv ['k':'bool','v':bj[x['v']]];}
+    ?k=='not'{rv ['k':'not','v':bj[x['v']]];}
+    ?k=='unary'{rv ['k':'unary','o':x['o'],'v':bj[x['v']]];}
+    ?k=='assign-expr'{
+        ?x['o']!=':='{er 'Stage-2 lowerer: nested assignment currently requires :=';}
+        a:=x['a'];?vl[a]!=1{er 'Stage-2 lowerer: nested multiple assignment unsupported';}
+        rv ['k':'assign-expr','n':bi[vg[a,0]],'v':bj[x['v']]];
+    }
+    ?k=='format'{
+        a:=x['a'];
+        o:=vn[];
+        n:=vl[a];
+        i:=0;
+        wl ?i<n {
+            q:=vg[a,i];
+            if ?q['k']=='text' {
+                r:=['k':'text','r':q['r']];
+                vp[o,r];
+            }
+            ee {
+                r:=['k':'expr','v':bj[q['v']]];
+                vp[o,r];
+            }
+            i=i1+;
+        }
+        rv ['k':'format','a':o];
+    }
+    ?k=='cast'{rv ['k':'cast','t':x['t'],'v':bj[x['v']]];}
+    ?k=='list'{rv ['k':'list','a':bk[x['a']]];}
+    ?k=='map'{
+        a:=x['a'];o:=vn[];n:=vl[a];i:=0;
+        wl?i<n{q:=vg[a,i];vp[o,['a':bj[q['a']],'b':bj[q['b']]]];i=i1+;}
+        rv ['k':'map','a':o];
+    }
+    ?k=='index'{rv ['k':'index','a':bj[x['a']],'b':bj[x['b']]];}
+    ?k=='slice'{
+        b:=x['b'];c:=x['c'];d:=x['d'];
+        ?b!=nn{b=bj[b];}?c!=nn{c=bj[c];}?d!=nn{d=bj[d];}
+        rv ['k':'slice','a':bj[x['a']],'b':b,'c':c,'d':d];
+    }
+    ?k=='call'{rv ['k':'call','n':x['n'],'a':bk[x['a']]];}
+    ?k=='module-call'{rv ['k':'module-call','u':x['u'],'n':x['n'],'a':bk[x['a']]];}
+    ?k=='user-module-call'{rv ['k':'user-module-call','u':x['u'],'n':x['n'],'a':bk[x['a']]];}
+    ?k=='user-module-var'{rv ['k':'user-module-var','u':x['u'],'n':x['n']];}
+    ?k=='user-module-class-call'{rv ['k':'user-module-class-call','u':x['u'],'n':x['n'],'a':bk[x['a']]];}
+    ?k=='user-module-class-member'{rv ['k':'user-module-class-member','u':x['u'],'c':x['c'],'n':x['n']];}
+    ?k=='user-module-class-method'{rv ['k':'user-module-class-method','u':x['u'],'c':x['c'],'n':x['n'],'a':bk[x['a']]];}
+    ?k=='class-call'{rv ['k':'class-call','n':x['n'],'a':bk[x['a']]];}
+    ?k=='member'{a:=x['a'];?a!=nn{a=bj[a];}rv ['k':'member','n':x['n'],'a':a,'c':x['c'],'z':x['z']];}
+    ?k=='method'{r:=x['r'];?r!=nn{r=bj[r];}rv ['k':'method','n':x['n'],'a':bk[x['a']],'r':r,'c':x['c'],'z':x['z'],'u':x['u']];}
+    ?k=='set-member'{rv ['k':'set-member','t':bj[x['a']],'v':bj[x['v']],'i':x['i']];}
+    er 'Stage-2 lowerer: unsupported audited expression';
+}
+~bn x {
+    e := x['e'];
+    z := x['x'];
+    n := vl[e];
+    i := n;
+    t := nn;
+    ?z != nn { t = bo[z]; }
+    wl ?i > 0 {
+        i = i 1 -;
+        q := vg[e, i];
+        c := bj[q['c']];
+        b := bo[q['b']];
+        r := ['k':'if','c':c,'b':b,'e':t];
+        o := vn[];
+        vp[o, r];
+        t = o;
+    }
+    c := bj[x['c']];
+    b := bo[x['b']];
+    r := ['k':'if','c':c,'b':b,'e':t];
+    rv r;
+}
+
+~bm x {
+    k:=x['k'];
+    ?k=='comment'{rv ['k':'comment'];}
+    ?k=='import'{rv ['k':'import'];}
+    ?k=='namespace'{rv ['k':'comment'];}
+    ?k=='export'{rv ['k':'define','n':x['n'],'v':bj[x['v']]];}
+    ?k=='module-var-assign'{rv ['k':'module-var-assign','u':x['u'],'n':x['n'],'v':bj[x['v']]];}
+    ?k=='break'{rv ['k':'break'];}
+    ?k=='continue'{rv ['k':'continue'];}
+    ?k=='function'{
+        a:=x['a'];p:=vn[];n:=vl[a];i:=0;wl?i<n{q:=vg[a,i];vp[p,q['n']];i=i1+;}
+        rv ['k':'function','n':x['n'],'p':p,'b':bo[x['v']],'z':x['z'],'q':x['p']];
+    }
+    ?k=='destructor'{rv ['k':'destructor','b':bo[x['v']]];}
+    ?k=='super-init'{rv ['k':'super-init','a':bk[x['a']]];}
+    ?k=='set-member-stmt'{rv ['k':'set-member','t':bj[x['a']],'v':bj[x['v']],'d':x['d'],'i':x['i'],'q':x['p']];}
+    ?k=='class'{
+        a:=x['a'];p:=vn[];n:=vl[a];i:=0;
+        wl?i<n{q:=vg[a,i];d:=q['d'];?d!=nn{d=bj[d];}vp[p,['n':q['n'],'d':d]];i=i1+;}
+        rv ['k':'class','n':x['n'],'p':p,'b':bo[x['v']],'h':x['h'],'q':x['p']];
+    }
+    ?k=='assign'{
+        a:=x['a'];
+        if ?vl[a]==1 { rv ['k':'assign','n':bi[vg[a,0]],'v':bj[x['v']]]; }
+        ee { o:=vn[];n:=vl[a];i:=0;wl?i<n{vp[o,bi[vg[a,i]]];i=i1+;}rv ['k':'assign-multi','a':o,'v':bj[x['v']]]; }
+    }
+    ?k=='set-index'{rv ['k':'set-index','t':bj[x['a']],'v':bj[x['v']]];}
+    ?k=='expr'{
+        q:=x['v'];t:=q['k'];
+        ?t=='assign-expr'{
+            ?q['o']!=':='{er 'Stage-2 lowerer: immutable/nonnative assignment expression unsupported in bootstrap';}
+            a:=q['a'];
+            if ?vl[a]==1 { rv ['k':'define','n':bi[vg[a,0]],'v':bj[q['v']]]; }
+            ee { o:=vn[];n:=vl[a];i:=0;wl?i<n{vp[o,bi[vg[a,i]]];i=i1+;}rv ['k':'define-multi','a':o,'v':bj[q['v']]]; }
+        }
+        ?t=='set-index'{rv ['k':'set-index-define','t':bj[q['a']],'v':bj[q['v']]];}
+        ?t=='call'{rv ['k':'expr','v':bj[q]];}
+        ?t=='module-call'{rv ['k':'expr','v':bj[q]];}
+        ?t=='user-module-call'{rv ['k':'expr','v':bj[q]];}
+        ?t=='user-module-class-call'{rv ['k':'expr','v':bj[q]];}
+        ?t=='user-module-class-method'{rv ['k':'expr','v':bj[q]];}
+        ?t=='class-call'{rv ['k':'expr','v':bj[q]];}
+        ?t=='method'{rv ['k':'expr','v':bj[q]];}
+        ?t=='set-member'{rv ['k':'set-member','t':bj[q['a']],'v':bj[q['v']],'d':1,'i':q['i'],'q':0];}
+        er 'Stage-2 lowerer: unsupported expression statement';
+    }
+    ?k=='return'{rv ['k':'return','v':bk[x['v']]];}
+    ?k=='raise'{q:=x['v'];?q==nn{rv ['k':'raise','v':nn];}rv ['k':'raise','v':bj[q]];}
+    ?k=='if'{rv bn[x];}
+    ?k=='while'{rv ['k':'while','c':bj[x['c']],'b':bo[x['b']]];}
+    ?k=='for'{
+        y:=x['y'];
+        ?y=='foreach'{rv ['k':'foreach','n':x['n'],'s':bj[x['q']],'b':bo[x['b']]];}
+        ?y=='range'{
+            d:=x['d'];?d!=nn{d=bj[d];}
+            rv ['k':'range','n':x['n'],'a':bj[x['a']],'z':bj[x['z']],'d':d,'b':bo[x['b']]];
+        }
+        er 'Stage-2 lowerer: unsupported loop form';
+    }
+    ?k=='try'{
+        c:=x['c'];f:=x['f'];?c!=nn{c=bo[c];}?f!=nn{f=bo[f];}
+        rv ['k':'try','b':bo[x['b']],'n':x['n'],'c':c,'f':f];
+    }
+    er 'Stage-2 lowerer: unsupported audited statement';
+}
+~bo a {
+    o:=vn[];n:=vl[a];i:=0;wl?i<n{vp[o,bm[vg[a,i]]];i=i1+;}rv o;
+}
+
+##! Append public callable signatures owned by one already-parsed dependency.
+~bh m o {
+    a:=m['aud'];n:=vl[a];i:=0;
+    wl?i<n{
+        x:=vg[a,i];?x['k']=='function'{_pr_:=x['p'];?!_pr_{
+            v:=x['a'];_vn_:=vl[v];j:=0;_req_:=0;
+            wl?j<_vn_{y:=vg[v,j];_df_:=y['d'];?_df_==nn{_req_=_req_1+;}j=j1+;}
+            _max_:=_vn_;_dense_:=1;_var_:=x['x'];?_var_!=nn{_max_=2147483647$;_dense_=0;}
+            r:=['n':x['n'],'a':_req_,'b':_max_,'d':_dense_];vp[o,r];
+        }}
+        i=i1+;
+    }
+    rv;
+}
+
+##! Recursively load one module while retaining identity. Source is lexed exactly once:
+##! shallow imports -> dependencies/signatures -> seeded full parse.
+~be p g {
+    _st_:=g['st'];_by_:=g['by'];_has_:=in[p,_st_];
+    ?_has_{
+        _v0_:=_st_[p];?_v0_==1{er'Stage-2 module import cycle';}
+        z:=_by_[p];rv z;
+    }
+
+    _st_[p]:=1;_id_:=g['next'];g['next']=_id_1+;
+    _ov_:=g['ov'];_hov_:=in[p,_ov_];s:='';if ?_hov_{s=_ov_[p];}ee{s=FS.ft[p];}t:=wc[s];_imp_:=wd[t];_deps_:=vn[];_direct_:=vn[];_sigs_:=vn[];_aliases_:=[:];_alinks_:=[:];_classes_:=[:];_semclasses_:=vn[];d:=bc[p];
+    _in_:=vl[_imp_];i:=0;
+    wl?i<_in_{
+        r:=vg[_imp_,i];q:=r['p'];_isstd_:=0;?ln[q]>=5{?q[:5]=='@std/'{_isstd_=1;}}?_isstd_==0{?ln[q]>=10{?q[:10]=='@internal/'{_isstd_=1;}}}
+        ?!_isstd_{
+            _isdep_:=0;?ln[q]>=5{?q[:5]=='@dep/'{_isdep_=1;}}_cp_:='';
+            if ?_isdep_ {_cp_=PM.gn[g['project'],p,q];}
+            ee {_cp_=d q +;}
+            _ch_:=be[_cp_,g];vp[_deps_,_ch_];
+            _alias_:=r['a'];
+            if ?_alias_==nn {vp[_direct_,_ch_];bh[_ch_,_sigs_];bs[_ch_,_classes_,_semclasses_];}
+            ee {_ha_:=in[_alias_,_aliases_];?_ha_{er'duplicate Stage-2 module alias';}_aliases_[_alias_]:=_ch_['pub'];_alinks_[_alias_]:=_ch_;}
+        }
+        i=i1+;
+    }
+
+    a:=wf[t,_sigs_,_aliases_,_classes_];va[a,0,0,1,nn];_sem_:=oy[a,_semclasses_];u:=a;_pub_:=br[u,p,_sem_];a=bo[a];_sym_:=bd[a];
+    m:=['id':_id_,'path':p,'ast':a,'aud':u,'deps':_deps_,'direct':_direct_,'al':_alinks_,'pub':_pub_,'sem':_sem_,'f':_sym_['f'],'g':_sym_['g']];
+    _by_[p]:=m;_mods_:=g['mods'];vp[_mods_,m];_st_[p]=2;_ord_:=g['order'];vp[_ord_,m];rv m;
+}
+
+##! Reject ambiguous direct imports while retaining both modules independently.
+##! Resolution maps are attached to each module:
+##!   rf name -> provider module (functions)
+##!   rg name -> provider module (module globals)
+~bf m {
+    _rf_ := [:];
+    _rg_ := [:];
+    _rc_ := [:];
+    _of_ := m['f'];
+    _og_ := m['g'];
+
+    ##! Own names always resolve to this module.
+    ##! Map iteration is unavailable in the Stage-1 subset, so scan the AST to seed own symbols.
+    a := m['ast'];
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        x := vg[a, i];
+        k := x['k'];
+        ?k == 'function' { _rf_[x['n']] := m; }
+        ?k == 'class' { _rc_[x['n']] := m; }
+        y := 0;
+        ?k == 'define' { y = 1; }
+        ?y { _rg_[x['n']] := m; }
+        _mu_:=0;?k=='define-multi'{_mu_=1;}
+        ?_mu_{_ma_:=x['a'];_mn_:=vl[_ma_];_mi_:=0;wl?_mi_<_mn_{q:=vg[_ma_,_mi_];_rg_[q]:=m;_mi_=_mi_1+;}}
+        i = i 1 +;
+    }
+
+    ##! Direct imports expose only names owned by the directly imported module.
+    d := m['direct'];
+    _dn_ := vl[d];
+    _di_ := 0;
+    wl ?_di_ < _dn_ {
+        c := vg[d, _di_];
+        _ca_ := c['aud'];
+        _cn_ := vl[_ca_];
+        j := 0;
+        wl ?j < _cn_ {
+            x := vg[_ca_, j];
+            k := x['k'];
+            ?k == 'function' {_pr_:=x['p'];?!_pr_{
+                q := x['n'];y := in[q, _rf_];?y { er 'direct import collision for Stage-2 callable'; }_rf_[q] := c;
+            }}
+            ?k == 'export' {
+                q := x['n'];_has_ := in[q, _rg_];?_has_ { er 'direct import collision for Stage-2 variable'; }_rg_[q] := c;
+            }
+            ?k == 'class' {_pr_:=x['p'];?!_pr_{
+                q:=x['n'];_has_:=in[q,_rc_];?_has_{er'direct import collision for Stage-2 class';}_rc_[q]:=c;
+            }}
+            j = j 1 +;
+        }
+        _di_ = _di_ 1 +;
+    }
+
+    m['rf'] := _rf_;
+    m['rg'] := _rg_;
+    m['rc'] := _rc_;
+    rv;
+}
+
+##! Internal graph constructor with optional exact-path source overlays.
+~bv p c o {
+    _by_ := [:];
+    _mods_ := vn[];
+    _ord_ := vn[];
+    _st_ := [:];
+    g := ['by': _by_, 'mods': _mods_, 'order': _ord_, 'st': _st_, 'next': 1, 'project':c, 'ov':o];
+    r := be[p, g];
+
+    n := vl[_mods_];
+    i := 0;
+    wl ?i < n {
+        m := vg[_mods_, i];
+        bf[m];
+        i = i 1 +;
+    }
+
+    z := ['root': r, 'mods': _mods_, 'order': _ord_, 'by': _by_, 'project':c];
+    rv z;
+}
+
+##! Public entry: load and link a module graph without flattening it.
+~bt p c {o:=[:];rv bv[p,c,o];}
+
+##! Tooling entry: overlay the root source in memory while retaining its logical path.
+~bu p s {c:=PM.gl[p,1];o:=[:];o[p]:=s;rv bv[p,c,o];}
+
+##! Backward-compatible graph entry: discover project context only when present.
+~bg p { c:=PM.gl[p,1];rv bt[p,c]; }
+
+##! Failure-only tooling locator. Rebuild only the root parser seed after a normal
+##! compilation has failed; this path is never reached by successful compilation.
+~bw p s {
+    c:=PM.gl[p,1];_by_:=[:];_mods_:=vn[];_ord_:=vn[];_st_:=[:];
+    g:=['by':_by_,'mods':_mods_,'order':_ord_,'st':_st_,'next':1,'project':c,'ov':[:]];
+    _ll_:=wi[s];?_ll_!=nn{rv _ll_;}
+    t:=wc[s];
+    _imp_:=wd[t];_sigs_:=vn[];_aliases_:=[:];_classes_:=[:];_semclasses_:=vn[];d:=bc[p];
+    _in_:=vl[_imp_];i:=0;
+    wl?i<_in_{
+        r:=vg[_imp_,i];q:=r['p'];_isstd_:=0;?ln[q]>=5{?q[:5]=='@std/'{_isstd_=1;}}?_isstd_==0{?ln[q]>=10{?q[:10]=='@internal/'{_isstd_=1;}}}
+        ?!_isstd_{
+            _isdep_:=0;?ln[q]>=5{?q[:5]=='@dep/'{_isdep_=1;}}_cp_:='';
+            if ?_isdep_{_cp_=PM.gn[c,p,q];}ee{_cp_=d q +;}
+            _ch_:=be[_cp_,g];_alias_:=r['a'];
+            if ?_alias_==nn{bh[_ch_,_sigs_];bs[_ch_,_classes_,_semclasses_];}
+            ee{_aliases_[_alias_]:=_ch_['pub'];}
+        }
+        i=i1+;
+    }
+    _ploc_:=wg[t,_sigs_,_aliases_,_classes_];?_ploc_['found']{rv _ploc_;}
+    ## Syntactically complete failure: replay only the selected AST with provenance,
+    ## then let the frozen structural/OOP validators identify the failing statement.
+    _ast_:=wh[t,_sigs_,_aliases_,_classes_];
+    _sl_:=vh[_ast_,_semclasses_];?_sl_!=nn{rv _sl_;}
+    rv ['found':0];
+}

@@ -1,0 +1,6 @@
+//! Alias import keeps public symbols behind one module name.
+>'lib/math':m
+co m.sq[A$]
+co m.pu[A$]
+a:=m.CD[A$]
+co a.gt[]

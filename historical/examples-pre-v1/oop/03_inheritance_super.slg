@@ -1,0 +1,16 @@
+//! OOP 03 — required parent construction, overriding, and explicit super-method dispatch.
+#BA x {
+    .x:=x
+    ~gt {rv.x}
+}
+#CH<BA x {
+    ^^[x]
+    .y:=x1+
+    ~gt {rv.x.y+}
+    ~pa {rv^^.gt[]}
+}
+a:=CH[A$]
+co[a.x]
+co[a.y]
+co[a.gt[]]
+co[a.pa[]]

@@ -1,0 +1,8 @@
+//! while + continue + break.
+a:=5
+wl?a{
+    a--
+    ?a==3{cl}
+    coa
+    ?a==1{bl}
+}

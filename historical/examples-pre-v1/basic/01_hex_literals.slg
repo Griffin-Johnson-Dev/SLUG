@@ -1,0 +1,5 @@
+//! BASIC 01 — hexadecimal integer source and decimal console output
+a := A$;
+b := 10;
+co a;
+co b;

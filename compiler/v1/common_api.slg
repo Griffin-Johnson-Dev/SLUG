@@ -1,0 +1,11 @@
+##! SLUG v1 program-parser common helper facade.
+>'common.slg'
+~ya t i {rv hb[t,i];}
+~yb t i {rv hd[t,i];}
+~yc a x {rv hj[a,x];}
+~yd o e p s {hl[o,e,p,s];rv;}
+~ye k {rv hm[k];}
+~yf k n {rv hn[k,n];}
+~yg a {rv ia[a];}
+~yh x {rv ib[x];}
+~yi a {rv id[a];}

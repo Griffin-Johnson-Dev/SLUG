@@ -1,0 +1,1004 @@
+##! SLUG v1 ambiguity-aware ordinary-expression parser.
+##! Compiled by the frozen Stage-2 backend; does not modify the v0.1.7.1 oracle.
+>'vector_core.slg'
+>'common.slg'
+>'signatures.slg'
+
+##! Two-lowercase token pair or ''.
+~ea c p {
+    t := c['t'];
+    ?hd[t,p] != 'LOWER' { rv ''; }
+    ?hd[t,p 1 +] != 'LOWER' { rv ''; }
+    s := hb[t,p] hb[t,p 1 +] +;
+    rv s;
+}
+
+##! Parse @type. Returns ['t':code,'p':end] or nn.
+~eb c p {
+    t := c['t'];
+    ?hb[t,p] != '@' { z:=nn; rv z; }
+    ?hd[t,p 1 +] != 'LOWER' { z:=nn; rv z; }
+    b := hb[t,p 1 +];
+    _ebhas_:=in[b,'iufsb']; ?!_ebhas_ { z:=nn; rv z; }
+    s := p 2 +;
+    i := s;
+    w := '';
+    wl ?hd[t,i] == 'DIGIT' {
+        w = w hb[t,i] +;
+        i = i 1 +;
+    }
+    _ok_ := 0;
+    ?b == 'i' { ?in[w, ['8':1,'16':1,'32':1,'64':1]] { _ok_=1; } }
+    ?b == 'u' { ?in[w, ['8':1,'16':1,'32':1,'64':1]] { _ok_=1; } }
+    ?b == 'f' { ?w == '64' { _ok_=1; } }
+    ?_ok_ {
+        q := b w +;
+        rv ['t':q,'p':i];
+    }
+    rv ['t':b,'p':s];
+}
+
+##! Lexical assignment target list with optional contracts.
+##! Returns AST target vector a, type vector y, assignment-op position p.
+~ec c p {
+    t := c['t'];
+    a := vn[];
+    y := vn[];
+    i := p;
+    z := 1; _good_ := 0;
+    wl ?z {
+        k := hd[t,i];
+        q := hb[t,i];
+        _good_ = 0;
+        ?k == 'LOWER' { _good_=1; }
+        ?k == 'EXT' { _good_=1; }
+        ?!_good_ { bl }
+        ?k == 'LOWER' { x := hn['var',q]; vp[a,x]; }
+        ee { x := hn['ext',q]; vp[a,x]; }
+        i = i 1 +;
+        _tc_ := nn;
+        ?hb[t,i] == '@' {
+            r := eb[c,i];
+            ?r == nn { z:=nn; rv z; }
+            _tc_ = r['t'];
+            i = r['p'];
+        }
+        vp[y,_tc_];
+    }
+    ?vl[a] <= 0 { z:=nn; rv z; }
+    _op_ := hb[t,i];
+    _good_ = 0;
+    ?_op_ == '=' { _good_=1; }
+    ?_op_ == ':=' { _good_=1; }
+    ?_op_ == '::=' { _good_=1; }
+    ?!_good_ { z:=nn; rv z; }
+    rv ['a':a,'y':y,'p':i];
+}
+
+##! Scan a full decimal digit run terminated by $. Returns record or nn.
+~ed c p {
+    t := c['t'];
+    i := p;
+    r := '';
+    n := 0;
+    z := 1; _good_ := 0;
+    wl ?z {
+        k := hd[t,i]; q := hb[t,i]; _good_ = 0;
+        ?k == 'DIGIT' { _good_=1; }
+        ?!_good_ { bl }
+        r = r q +; n = n 1 +; i = i 1 +;
+    }
+    ?n > 0 { ?hb[t,i] == '$' { r = r '$' +; rv ['r':r,'p':i 1 +]; } }
+    z:=nn; rv z;
+}
+
+##! Iterative fast path for arbitrarily deep singleton list spines.
+##! It consumes consecutive [ / @[ openers, parses the first non-list inner
+##! expression once, then wraps matching ] delimiters outward without recursive
+##! list-parser descent.  If the shape is not a pure singleton spine it returns
+##! no candidates and the ordinary ambiguity-aware parser remains authoritative.
+~en c p {
+    t:=c['t']; _flags_:=vn[]; i:=p; z:=1;
+    wl ?z {
+        x:=hb[t,i];
+        ?x=='[' { vp[_flags_,0]; i=i1+; cl }
+        ?x=='@' { ?hb[t,i1+]=='[' { vp[_flags_,1]; i=i2+; cl } }
+        bl
+    }
+    n:=vl[_flags_]; _out_:=vn[];
+    ?n<2 { rv _out_; }
+    _ch_:=ez[c,i]; m:=vl[_ch_]; j:=0;
+    wl ?j<m {
+        q:=vg[_ch_,j]; e:=q['p']; v:=q['e']; k:=n1-; _ok_:=1;
+        wl ?k>=0 {
+            ?hb[t,e]!=']' { _ok_=0; bl }
+            a:=vn[]; vp[a,v]; _kind_:='list'; ?vg[_flags_,k] { _kind_='frozen-list'; }
+            v=hy[_kind_,a]; e=e1+;
+            ?k==0 { bl }
+            k=k1-;
+        }
+        ?_ok_ { hl[_out_,v,e,q['s']]; }
+        j=j1+;
+    }
+    rv ic[_out_];
+}
+
+##! Expression candidate memo entry point.
+~ez c p {
+    m := c['m'];
+    q := @s|p|;
+    ?in[q,m] { a:=m[q]; rv a; }
+    _empty_ := vn[];
+    m[q] := _empty_;
+    a := en[c,p];
+    ?vl[a]>0 { m[q]=a; rv a; }
+    a = ef[c,p];
+    a = ic[a];
+    m[q] = a;
+    rv a;
+}
+
+##! Return index of cheapest state in a vector, tie-breaking by token position.
+~eg a {
+    n := vl[a];
+    ?n <= 0 { rv 0; }
+    b := 0;
+    x := vg[a,0];
+    i := 1;
+    wl ?i < n {
+        y := vg[a,i];
+        _take_ := 0;
+        ?y['s'] < x['s'] { _take_=1; }
+        ?y['s'] == x['s'] { ?y['p'] < x['p'] { _take_=1; } }
+        ?_take_ { b=i; x=y; }
+        i=i1+;
+    }
+    rv b;
+}
+
+##! Remove vector element i by moving the final element into its slot.
+~eh a i {
+    ##! Internal dual mode: vectors use the historical remove-at behavior; parser
+    ##! contexts (identified by key 't') request lexical indexed-target candidates.
+    ?in['t',a]{
+        t:=a['t'];k:=hd[t,i];o:=vn[];_ok_:=0;?k=='LOWER'{_ok_=1;}?k=='EXT'{_ok_=1;}
+        ?!_ok_{rv o;}?hb[t,i1+]!='['{rv o;}
+        b:=nn;?k=='LOWER'{b=hn['var',hb[t,i]];}ee{b=hn['ext',hb[t,i]];}
+        q:=ey[a,b,i1+,0];n:=vl[q];j:=0;
+        wl?j<n{x:=vg[q,j];?x['e']['k']=='index'{vp[o,x];}j=j1+;}
+        rv o;
+    }
+    n := vl[a];
+    ?n <= 0 { z:=nn; rv z; }
+    x := vg[a,i];
+    _last_ := vo[a];
+    ?i < n 1 - { vs[a,i,_last_]; }
+    rv x;
+}
+
+##! RPN candidate search. Preference queue matches the frozen oracle's cheap-first rule.
+##! Seed prefix lexical assignment candidates into output o.
+~jk c p o {
+    t := c['t'];
+    r := ec[c,p];
+    ?r == nn { rv; }
+    x := hb[t,r['p']];
+    z := 0; ?x == ':=' {z=1;} ?x == '::=' {z=1;}
+    ?!z { rv; }
+    a := ez[c,r['p']1+]; n := vl[a]; i := 0;
+    wl ?i<n {
+        q:=vg[a,i]; v:=r['a']; d:=vl[v]1-; d=d3*;
+        y:=['k':'assign-expr','o':x,'a':v,'y':r['y'],'v':q['e']];
+        hl[o,y,q['p'],q['s'] d +];
+        i=i1+;
+    }
+    rv;
+}
+
+##! Stable state key for seen-set suppression.
+~jl v p s {
+    k:=@s|p|; k=k ':'+; k=k @s|s|+; k=k ':'+;
+    n:=vl[v]; i:=0;
+    wl ?i<n { k=k ib[vg[v,i]]+; k=k ';'+; i=i1+; }
+    rv k;
+}
+
+##! Hard expression boundary at token p.
+~jm c p {
+    t:=c['t']; x:=hb[t,p]; k:=hd[t,p];
+    ?x==';'{rv1;} ?x=='\}'{rv1;} ?x==']'{rv1;} ?x==','{rv1;} ?x==':'{rv1;} ?x==''{rv1;}
+    ?k=='EOF'{rv1;} ?k=='COMMENT'{rv1;}
+    rv0;
+}
+
+##! Expand one RPN operator state. Returns 1 when token is an operator/boundary form.
+~jn c q a {
+    t:=c['t']; p:=q['p']; v:=q['v']; s:=q['s']; n:=vl[v]; x:=hb[t,p];
+    z:=0; ?in[x,['+':1,'-':1,'*':1,'/':1,'//':1,'%':1,'^':1]]{z=1;} ?!z{rv0;}
+    ?n<=0{rv1;}
+    ?x=='-' {
+        y:=hb[t,p1+]; b:=0;
+        ?y=='#'{b=1;} ?y=='~'{b=1;} ?y=='~~'{b=1;} ?y=='.'{b=1;}
+        ?b{rv1;}
+        w:=hi[v]; u:=vo[w]; u=['k':'unary','o':'-','v':u]; vp[w,u];
+        vp[a,['p':p1+,'v':w,'s':s,'c':1]];
+    }
+    ?n>=2{
+        w:=hi[v]; d:=vo[w]; b:=vo[w]; u:=hq[x,b,d]; vp[w,u];
+        vp[a,['p':p1+,'v':w,'s':s,'c':1]];
+    }
+    rv1;
+}
+
+##! Expand atom continuations for one state.
+~jo c q a {
+    p:=q['p']; v:=q['v']; s:=q['s']; n:=vl[v];
+    x:=iz[c,p]; m:=vl[x]; i:=0;
+    wl ?i<m {
+        d:=vg[x,i];
+        w:=hi[v]; vp[w,d['e']]; z:=0; k:=d['e']['k'];
+        ?n>0{?k=='assign-expr'{z=8;}}
+        vp[a,['p':d['p'],'v':w,'s':s d['s'] + z +,'c':1]];
+        i=i1+;
+    }
+    rv;
+}
+
+##! RPN candidate search. Preference queue matches the frozen oracle's cheap-first rule.
+~ef c p {
+    o:=vn[]; jk[c,p,o];
+    a:=vn[]; v:=vn[]; vp[a,['p':p,'v':v,'s':0,'c':0]];
+    m:=[:];
+    wl ?vl[a]>0 {
+        j:=eg[a]; q:=eh[a,j]; v=q['v']; n:=vl[v];
+        k:=jl[v,q['p'],q['s']]; ?in[k,m]{cl} m[k]:=1;
+        ?q['c']{?n==1{hl[o,vg[v,0],q['p'],q['s']];}}
+        ?jm[c,q['p']]{cl}
+        ?jn[c,q,a]{cl}
+        jo[c,q,a];
+    }
+    rv o;
+}
+
+##! Consume exactly n inferred call arguments. Records: a=args, p=end, s=score.
+~ej c p n {
+    _out_ := vn[];
+    _args_ := vn[];
+    ek[c,p,n,_args_,0,_out_];
+    rv _out_;
+}
+~ek c p n _args_ _score_ _out_ {
+    ?n == 0 { vp[_out_,['a':_args_,'p':p,'s':_score_]]; rv; }
+    _ch_ := ez[c,p];
+    ##! xx is default sentinel in named-call context.
+    _extra_ := 0; _na_:=nn;
+    ?ea[c,p] == 'xx' { _extra_=1; }
+    ?_extra_ {
+        _na_ = hj[_args_,hm['default']];
+        ek[c,p2+,n1-,_na_,_score_,_out_];
+    }
+    _cn_ := vl[_ch_]; i := 0;
+    wl ?i < _cn_ {
+        e := vg[_ch_,i];
+        _pen_ := 0; _kk_ := e['e']['k'];
+        ?_kk_ == 'assign-expr' {_pen_=18$;}
+        ?_kk_ == 'call' {
+            _nm_ := e['e']['n'];
+            ?_nm_ == 'co' {_pen_=18$;} ?_nm_ == 'ci' {_pen_=18$;}
+        }
+        _na_ = hj[_args_,e['e']];
+        ek[c,e['p'],n1-,_na_,_score_ e['s'] + _pen_ +,_out_];
+        i=i1+;
+    }
+    rv;
+}
+
+##! Explicit [arg,...] pack.
+~el c p _allow_ {
+    _out_ := vn[];
+    t := c['t'];
+    ?hb[t,p] != '[' { rv _out_; }
+    ?hb[t,p1+] == ']' {
+        a:=vn[]; vp[_out_,['a':a,'p':p2+,'s':0]]; rv _out_;
+    }
+    a:=vn[];
+    em[c,p1+,_allow_,a,0,_out_];
+    rv _out_;
+}
+~em c p _allow_ _args_ _score_ _out_ {
+    t:=c['t'];a:=nn;
+    _choices_ := ez[c,p];
+    ?_allow_ { ?ea[c,p] == 'xx' {
+        d:=hm['default'];
+        _np_:=p2+;
+        ?hb[t,_np_] == ']' { a=hj[_args_,d]; vp[_out_,['a':a,'p':_np_1+,'s':_score_]]; }
+        ?hb[t,_np_] == ',' { a=hj[_args_,d]; em[c,_np_1+,_allow_,a,_score_,_out_]; }
+    } }
+    n:=vl[_choices_]; i:=0;
+    wl ?i<n {
+        q:=vg[_choices_,i]; _np_:=q['p'];
+        ?hb[t,_np_] == ']' { a=hj[_args_,q['e']]; vp[_out_,['a':a,'p':_np_1+,'s':_score_ q['s'] +]]; }
+        ?hb[t,_np_] == ',' { a=hj[_args_,q['e']]; em[c,_np_1+,_allow_,a,_score_ q['s'] +,_out_]; }
+        i=i1+;
+    }
+    rv;
+}
+
+##! Generate named-call candidates from an exact signature.
+~eo c _name_ _sig_ p _forced_ {
+    _out_:=vn[];
+    _min_:=_sig_['a']; _max_:=_sig_['b'];
+    n:=_max_;
+    wl ?n >= _min_ {
+        _cs_:=ej[c,p,n]; _cn_:=vl[_cs_]; i:=0;
+        wl ?i<_cn_ {
+            q:=vg[_cs_,i];
+            _pen_:=n _min_ -; _pen_=_pen_3*;
+            ?!_forced_ {_pen_=_pen_4+;}
+            x:=hx[_name_,q['a']];
+            hl[_out_,x,q['p'],q['s'] _pen_ +];
+            i=i1+;
+        }
+        ?n==0{bl}
+        n=n1-;
+    }
+    rv _out_;
+}
+
+##! List parser.
+~ep c p _frozen_ {
+    _out_:=vn[]; t:=c['t'];
+    ?hb[t,p] != '[' {rv _out_;}
+    ?hb[t,p1+] == ']' {
+        a:=vn[]; k:='list'; ?_frozen_{k='frozen-list';}
+        x:=hy[k,a]; hl[_out_,x,p2+,0]; rv _out_;
+    }
+    a:=vn[];
+    eq[c,p1+,_frozen_,a,0,_out_];
+    rv ic[_out_];
+}
+~eq c p _frozen_ _items_ _score_ _out_ {
+    t:=c['t'];a:=nn;k:=''; _ch_:=ez[c,p]; n:=vl[_ch_]; i:=0;
+    wl ?i<n {
+        q:=vg[_ch_,i]; e:=q['p'];
+        ?hb[t,e] == ']' {
+            a=hj[_items_,q['e']]; k='list'; ?_frozen_{k='frozen-list';}
+            x:=hy[k,a]; hl[_out_,x,e1+,_score_ q['s'] +];
+        }
+        ?hb[t,e] == ',' {
+            a=hj[_items_,q['e']]; eq[c,e1+,_frozen_,a,_score_ q['s'] +,_out_];
+        }
+        i=i1+;
+    }
+    rv;
+}
+
+##! Map parser.
+~es c p _frozen_ {
+    _out_:=vn[]; t:=c['t'];
+    ?hb[t,p] != '[' {rv _out_;}
+    ?hb[t,p1+] == ':' { ?hb[t,p2+] == ']' {
+        a:=vn[]; x:=hy['map',a]; x['f']:=_frozen_; hl[_out_,x,p3+,0]; rv _out_;
+    } }
+    a:=vn[];
+    et[c,p1+,_frozen_,a,0,_out_];
+    rv ic[_out_];
+}
+~et c p _frozen_ _entries_ _score_ _out_ {
+    t:=c['t']; _keys_:=ez[c,p]; _kn_:=vl[_keys_]; i:=0;
+    wl ?i<_kn_ {
+        k:=vg[_keys_,i];
+        ?hb[t,k['p']] == ':' {
+            _vals_:=ez[c,k['p']1+]; _valn_:=vl[_vals_]; j:=0;
+            wl ?j<_valn_ {
+                v:=vg[_vals_,j]; e:=v['p']; _pair_:=hz[k['e'],v['e']]; a:=hj[_entries_,_pair_]; _sc_:=_score_ k['s'] + v['s'] +;
+                ?hb[t,e] == ']' { x:=hy['map',a]; x['f']:=_frozen_; hl[_out_,x,e1+,_sc_]; }
+                ?hb[t,e] == ',' { et[c,e1+,_frozen_,a,_sc_,_out_]; }
+                j=j1+;
+            }
+        }
+        i=i1+;
+    }
+    rv;
+}
+
+##! Parse one index/slice suffix against base.
+~eu c _base_ p _score_ {
+    _out_:=vn[]; t:=c['t'];
+    ?hb[t,p] != '[' {rv _out_;}
+    q:=p1+;
+    ##! omitted-start slice
+    ?hb[t,q] == ':' {
+        ew[c,_base_,nn,q1+,_score_,_out_];
+        rv ic[_out_];
+    }
+    _first_:=ez[c,q]; n:=vl[_first_]; i:=0;
+    wl ?i<n {
+        a:=vg[_first_,i]; e:=a['p'];
+        ?hb[t,e] == ']' { x:=['k':'index','a':_base_,'b':a['e']]; hl[_out_,x,e1+,_score_ a['s'] +]; }
+        ?hb[t,e] == ':' { ew[c,_base_,a['e'],e1+,_score_ a['s'] +,_out_]; }
+        i=i1+;
+    }
+    rv ic[_out_];
+}
+
+##! Finish a slice after first colon.
+~ew c _base_ _begin_ p _score_ _out_ {
+    t:=c['t'];
+    ?hb[t,p] == ']' { x:=['k':'slice','a':_base_,'b':_begin_,'c':nn,'d':nn]; hl[_out_,x,p1+,_score_]; rv; }
+    ?hb[t,p] == ':' { ex[c,_base_,_begin_,nn,p1+,_score_,_out_]; rv; }
+    _vals_:=ez[c,p]; n:=vl[_vals_]; i:=0;
+    wl ?i<n {
+        q:=vg[_vals_,i]; e:=q['p']; _sc_:=_score_ q['s'] +;
+        ?hb[t,e] == ']' { x:=['k':'slice','a':_base_,'b':_begin_,'c':q['e'],'d':nn]; hl[_out_,x,e1+,_sc_]; }
+        ?hb[t,e] == ':' { ex[c,_base_,_begin_,q['e'],e1+,_sc_,_out_]; }
+        i=i1+;
+    }
+    rv;
+}
+~ex c _base_ _begin_ _stop_ p _score_ _out_ {
+    t:=c['t'];
+    ?hb[t,p] == ']' { x:=['k':'slice','a':_base_,'b':_begin_,'c':_stop_,'d':nn]; hl[_out_,x,p1+,_score_]; rv; }
+    _vals_:=ez[c,p]; n:=vl[_vals_]; i:=0;
+    wl ?i<n {
+        q:=vg[_vals_,i];
+        ?hb[t,q['p']] == ']' { x:=['k':'slice','a':_base_,'b':_begin_,'c':_stop_,'d':q['e']]; hl[_out_,x,q['p']1+,_score_ q['s'] +]; }
+        i=i1+;
+    }
+    rv;
+}
+
+##! Recursively collect one-or-more postfix [] chains.  Base itself is retained by caller.
+~ey c _base_ p _score_ {
+    _out_:=vn[]; t:=c['t']; _more_:=vn[]; _mn_:=0; j:=0; x:=nn; _cand_:=nn; _mname_:='';
+    ?hb[t,p]=='['{
+        d:=eu[c,_base_,p,_score_]; n:=vl[d]; i:=0;
+        wl ?i<n {
+            q:=vg[d,i]; vp[_out_,q];
+            _more_=ey[c,q['e'],q['p'],q['s']]; _mn_=vl[_more_]; j=0;
+            wl ?j<_mn_ {vp[_out_,vg[_more_,j]];j=j1+;}
+            i=i1+;
+        }
+    }
+    ?hb[t,p]=='.'{
+        _mp_:=p1+;_hard_:=0;
+        ?hd[t,_mp_]=='LOWER'{?hd[t,_mp_1+]=='LOWER'{?hb[t,_mp_2+]=='['{
+            _hard_=1;_mname_:=hb[t,_mp_] hb[t,_mp_1+]+;_packs_:=el[c,_mp_2+,1];_pn_:=vl[_packs_];_pi_:=0;
+            wl?_pi_<_pn_{_pc_:=vg[_packs_,_pi_];x=['k':'method','n':_mname_,'a':_pc_['a'],'r':_base_,'c':nn,'z':0,'u':0];_cand_=['e':x,'p':_pc_['p'],'s':_score_ _pc_['s']+];vp[_out_,_cand_];
+                _more_=ey[c,x,_pc_['p'],_cand_['s']];_mn_=vl[_more_];j=0;wl?j<_mn_{vp[_out_,vg[_more_,j]];j=j1+;}_pi_=_pi_1+;}
+        }}}
+        ?!_hard_{_mk_:=hd[t,_mp_];_mok_:=0;?_mk_=='LOWER'{_mok_=1;}?_mk_=='EXT'{_mok_=1;}?_mok_{
+            _mname_=hb[t,_mp_];x=['k':'member','n':_mname_,'a':_base_,'c':nn,'z':0];_cand_=['e':x,'p':_mp_1+,'s':_score_];vp[_out_,_cand_];
+            _more_=ey[c,x,_mp_1+,_score_];_mn_=vl[_more_];j=0;wl?j<_mn_{vp[_out_,vg[_more_,j]];j=j1+;}
+        }}
+    }
+    rv ic[_out_];
+}
+
+##! Reserved statement/control pairs are not inferred callables in expression position.
+~ja n {
+    ?n=='rv'{rv1;} ?n=='lb'{rv1;} ?n=='if'{rv1;} ?n=='ei'{rv1;} ?n=='ee'{rv1;}
+    ?n=='fl'{rv1;} ?n=='wl'{rv1;} ?n=='bl'{rv1;} ?n=='cl'{rv1;} ?n=='tr'{rv1;}
+    ?n=='ca'{rv1;} ?n=='fn'{rv1;} ?n=='er'{rv1;} ?n=='nn'{rv1;}
+    rv0;
+}
+
+##! Atom candidates (including postfix [] chains).
+##! Assignment-expression atoms.
+~ka c p o {
+    t:=c['t'];
+    ##! Member := / ::= is value-producing, like indexed :=.  Parse only the
+    ##! assignable member prefix here; ordinary member reads/calls stay in atom/postfix parsing.
+    _mt_:=vn[];_mk_:=hd[t,p];_mo_:=0;
+    ?hb[t,p]=='.'{
+        _ms_:=0;_mp_:=p1+;?hb[t,_mp_]=='.'{_ms_=1;_mp_=_mp_1+;}
+        _mnk_:=hd[t,_mp_];_mno_:=0;?_mnk_=='LOWER'{_mno_=1;}?_mnk_=='EXT'{_mno_=1;}
+        ?_mno_{_me_:=['k':'member','n':hb[t,_mp_],'a':nn,'c':nn,'z':_ms_];hl[_mt_,_me_,_mp_1+,0];}
+    }
+    ?_mk_=='UPPER'{?hd[t,p1+]=='UPPER'{?hb[t,p2+]=='.'{
+        _mp_:=p3+;_mnk_:=hd[t,_mp_];_mno_:=0;?_mnk_=='LOWER'{_mno_=1;}?_mnk_=='EXT'{_mno_=1;}
+        ?_mno_{_mc_:=hb[t,p] hb[t,p1+]+;_me_:=['k':'member','n':hb[t,_mp_],'a':nn,'c':_mc_,'z':1];hl[_mt_,_me_,_mp_1+,0];}
+    }}}
+    _mbo_:=0;?_mk_=='LOWER'{_mbo_=1;}?_mk_=='EXT'{_mbo_=1;}
+    ?_mbo_{?hb[t,p1+]=='.'{
+        _mb_:=nn;?_mk_=='LOWER'{_mb_=hn['var',hb[t,p]];}ee{_mb_=hn['ext',hb[t,p]];}
+        _mp_:=p2+;_mnk_:=hd[t,_mp_];_mno_:=0;?_mnk_=='LOWER'{_mno_=1;}?_mnk_=='EXT'{_mno_=1;}
+        ?_mno_{_me_:=['k':'member','n':hb[t,_mp_],'a':_mb_,'c':nn,'z':0];hl[_mt_,_me_,_mp_1+,0];}
+    }}
+    _mn_:=vl[_mt_];_mi_:=0;wl?_mi_<_mn_{_mq_:=vg[_mt_,_mi_];_mx_:=hb[t,_mq_['p']];_mo_=0;?_mx_==':='{_mo_=1;}?_mx_=='::='{_mo_=1;}
+        ?_mo_{_mr_:=ez[c,_mq_['p']1+];_mrn_:=vl[_mr_];_mri_:=0;_mpen_:=0;?_mq_['e']['a']!=nn{_mpen_=8;}wl?_mri_<_mrn_{_mv_:=vg[_mr_,_mri_];_mz_:=['k':'set-member','a':_mq_['e'],'v':_mv_['e'],'i':?[_mx_=='::=']];hl[o,_mz_,_mv_['p'],_mq_['s'] _mv_['s']+ _mpen_+];_mri_=_mri_1+;}}
+        _mi_=_mi_1+;
+    }
+    ##! Indexed := is value-producing; base targets are lexical lower/extended names.
+    _bk_:=hd[t,p];_bok_:=0;?_bk_=='LOWER'{_bok_=1;}?_bk_=='EXT'{_bok_=1;}
+    ?_bok_{?hb[t,p1+]=='['{
+        _base_:=nn;?_bk_=='LOWER'{_base_=hn['var',hb[t,p]];}ee{_base_=hn['ext',hb[t,p]];}
+        _ix_:=ey[c,_base_,p1+,0];_in_:=vl[_ix_];_ii_:=0;
+        wl?_ii_<_in_{_ic_:=vg[_ix_,_ii_];?_ic_['e']['k']=='index'{?hb[t,_ic_['p']]==':='{
+            _rhs_:=ez[c,_ic_['p']1+];_rn_:=vl[_rhs_];_ri_:=0;
+            wl?_ri_<_rn_{_rc_:=vg[_rhs_,_ri_];_zi_:=['k':'set-index','a':_ic_['e'],'v':_rc_['e']];hl[o,_zi_,_rc_['p'],_ic_['s'] _rc_['s']+];_ri_=_ri_1+;}
+        }}_ii_=_ii_1+;}
+    }}
+    r:=ec[c,p]; ?r==nn{rv;}
+    x:=hb[t,r['p']]; z:=0; ?x==':='{z=1;} ?x=='::='{z=1;} ?!z{rv;}
+    a:=ez[c,r['p']1+]; n:=vl[a]; i:=0;
+    wl ?i<n {
+        q:=vg[a,i]; v:=r['a']; d:=vl[v]1-; d=d3*;
+        y:=['k':'assign-expr','o':x,'a':v,'y':r['y'],'v':q['e']];
+        hl[o,y,q['p'],q['s'] d +]; i=i1+;
+    }
+    rv;
+}
+
+##! Matching brace for one formatted-string interpolation inside the raw string body.
+~ko b p {
+    d:=1;i:=p1+;n:=ln[b];
+    wl?i<n{
+        c:=b[i];
+        ?c=='\''{
+            i=i1+;
+            wl?i<n{c=b[i];?c=='\\'{i=i2+;cl}?c=='\''{i=i1+;bl}i=i1+;}
+            cl
+        }
+        ?i1+<n{q:=b[i:i2+];?q=='#*'{
+            h:=1;i=i2+;
+            wl?i<n{
+                ?i1+<n{q=b[i:i2+];?q=='#*'{h=h1+;i=i2+;cl}?q=='*#'{h=h1-;i=i2+;?h==0{bl}cl}}
+                i=i1+;
+            }
+            ?h!=0{er'unterminated block comment in string interpolation'}
+            cl
+        }}
+        ?c=='\{'{d=d1+;}
+        ?c=='\}'{d=d1-;?d==0{rv i;}}
+        i=i1+;
+    }
+    er'unterminated string interpolation';
+}
+
+##! Parse one interpolation expression using the namespace active in the outer context.
+~kp c s p {
+    t:=ha[s];q:=jj[t,c['s']];q['u']=c['u'];q['c']=c['c'];q['r']=c['r'];q['a']=kr[c,p];
+    a:=ez[q,0];n:=vl[a];_b_:=2147483647$;_x_:=nn;_f_:='';_ties_:=0;i:=0;
+    wl?i<n{r:=vg[a,i];?hd[t,r['p']]=='EOF'{
+        ?r['s']<_b_{_b_=r['s'];_x_=r['e'];_f_=ib[_x_];_ties_=1;}
+        ee{?r['s']==_b_{z:=ib[r['e']];?z!=_f_{_ties_=_ties_1+;}}}
+    }i=i1+;}
+    ?_x_==nn{er'string interpolation does not form one complete SLUG expression'}
+    ?_ties_>1{er'string interpolation is ambiguous'}
+    rv _x_;
+}
+
+##! Parse a STRING token into either a plain literal or an explicit formatted-string AST.
+~kn c r _pos_ {
+    n:=ln[r];
+    ?n<2{er'invalid string literal'}
+    e:=n 1 -;
+    b:=r[1:e];
+    m:=ln[b];
+    o:=vn[];
+    i:=0;
+    a:=0;
+    z:=0;
+    wl ?i<m {
+        h:=b[i];
+        ?h=='\\'{i=i 2 +;cl}
+        ?h=='\}'{er'literal closing brace in formatted string must be escaped'}
+        ?h!='\{'{i=i 1 +;cl}
+        z=1;
+        ?i>a {
+            v:=b[a:i];
+            q:='\'';
+            q=q v +;
+            q=q '\'' +;
+            p:=['k':'text','r':q];
+            vp[o,p];
+        }
+        j:=ko[b,i];
+        v:=b[i 1 +:j];
+        p:=['k':'expr','v':kp[c,v,_pos_]];
+        vp[o,p];
+        i=j 1 +;
+        a=i;
+    }
+    ?!z{rv ho['string',r];}
+    ?a<m {
+        v:=b[a:m];
+        q:='\'';
+        q=q v +;
+        q=q '\'' +;
+        p:=['k':'text','r':q];
+        vp[o,p];
+    }
+    rv ['k':'format','a':o];
+}
+
+##! True when the token at p is a public variable owned by the active module namespace.
+##! Bare module variables shadow ordinary lexical variable atoms while the namespace is active.
+~kv c p {
+    u:=kr[c,p];?u==nn{rv 0;}r:=c['r'];_hu_:=in[u,r];?!_hu_{rv 0;}g:=r[u]['g'];n:=hb[c['t'],p];_hv_:=in[n,g];?_hv_{rv 1;}rv 0;
+}
+
+##! Literal/null atoms and digit partitions.
+~kb c p o {
+    t:=c['t']; k:=hd[t,p]; x:=hb[t,p]; y:=nn;
+    ?k=='STRING'{y:=kn[c,x,p];hl[o,y,p1+,0];}
+    ?k=='FLOAT'{y:=ho['float',x];hl[o,y,p1+,0];}
+    ?k=='EXT'{?kv[c,p]{rv;}?hb[t,p1+]=='.'{_ur_:=c['r'];_ha_:=in[x,_ur_];?_ha_{rv;}}y:=hn['ext',x];hl[o,y,p1+,0];}
+    _class_:=0;_cn_ :='';_cm_:=c['c'];
+    ?k=='UPPER'{?hd[t,p1+]=='UPPER'{_cn_=x hb[t,p1+]+;?in[_cn_,_cm_]{
+        _cp_:=p2+;
+        ?hb[t,_cp_]=='.'{
+            _sp_:=_cp_1+;
+            ?hd[t,_sp_]=='LOWER'{
+                ?hd[t,_sp_1+]=='LOWER'{?hb[t,_sp_2+]=='['{
+                    _sn_:=hb[t,_sp_] hb[t,_sp_1+]+;_sa_:=el[c,_sp_2+,1];_sc_:=vl[_sa_];_si_:=0;
+                    wl?_si_<_sc_{_sq_:=vg[_sa_,_si_];y:=['k':'method','n':_sn_,'a':_sq_['a'],'r':nn,'c':_cn_,'z':1,'u':0];hl[o,y,_sq_['p'],_sq_['s']];_si_=_si_1+;}rv;
+                }}
+                y=['k':'member','n':hb[t,_sp_],'a':nn,'c':_cn_,'z':1];hl[o,y,_sp_1+,0];rv;
+            }
+            ?hd[t,_sp_]=='EXT'{y=['k':'member','n':hb[t,_sp_],'a':nn,'c':_cn_,'z':1];hl[o,y,_sp_1+,0];rv;}
+        }
+        _class_=1;_cs_:=_cm_[_cn_];
+        ?hb[t,_cp_]=='['{
+            _packs_:=el[c,_cp_,1];_pn_:=vl[_packs_];_pi_:=0;
+            wl?_pi_<_pn_{_pc_:=vg[_packs_,_pi_];_an_:=vl[_pc_['a']];?_an_>=_cs_['a']{?_an_<=_cs_['b']{y:=['k':'class-call','n':_cn_,'a':_pc_['a']];hl[o,y,_pc_['p'],_pc_['s']];}}_pi_=_pi_1+;}
+        }
+        ee{
+            _ca_:=_cs_['b'];wl?_ca_>=_cs_['a']{_as_:=ej[c,_cp_,_ca_];_an_:=vl[_as_];_ai_:=0;
+                wl?_ai_<_an_{_ac_:=vg[_as_,_ai_];y:=['k':'class-call','n':_cn_,'a':_ac_['a']];_pen_:=_ca_ _cs_['a'] -;_pen_=_pen_3*;hl[o,y,_ac_['p'],_ac_['s'] _pen_+];_ai_=_ai_1+;}
+                ?_ca_==0{bl}_ca_=_ca_1-;
+            }
+        }
+    }}}
+    r:=ed[c,p]; ?r!=nn{_hp_:=0;?_class_{_hp_=8;}y:=ho['int',r['r']];hl[o,y,r['p'],_hp_];rv;}
+    ?k=='DIGIT'{
+        j:=p; s:=''; a:=vn[];
+        wl ?hd[t,j]=='DIGIT'{s=s hb[t,j]+;vp[a,['r':s,'p':j1+]];j=j1+;}
+        n:=vl[a];i:=0;wl?i<n{q:=vg[a,i];d:=n i - 1 -;y:=ho['int',q['r']];hl[o,y,q['p'],d];i=i1+;}
+    }
+    ?ea[c,p]=='nn'{y:=ho['null','nn'];hl[o,y,p2+,0];}
+    rv;
+}
+
+##! Active module namespace at one token position. Interpolation contexts may
+##! carry an explicit override in c['a']; ordinary source uses the lexical map c['n'].
+~kr c p {
+    a:=c['a'];?a!=nn{rv a;}_on_:=c['N'];?!_on_{rv nn;}
+    m:=c['n'];k:=@s|p|;_has_:=in[k,m];?_has_{z:=m[k];rv z;}
+    z:=nn;rv z;
+}
+
+##! Parse exactly one legal module-alias atom. Returns ['n':alias,'p':end] or nn.
+~ks c p {
+    t:=c['t'];k:=hd[t,p];
+    ?k=='LOWER'{z:=['n':hb[t,p],'p':p1+];rv z;}
+    ?k=='EXT'{z:=['n':hb[t,p],'p':p1+];rv z;}
+    ?k=='UPPER'{?hd[t,p1+]=='UPPER'{n:=hb[t,p] hb[t,p1+]+;z:=['n':n,'p':p2+];rv z;}}
+    z:=nn;rv z;
+}
+
+##! Emit one standard/user module callable candidate for a known signature.
+##! q is the first token after the callable name.
+~kw c a n g q o z {
+    t:=c['t'];_std_:=z['s'];_id_:=z['i'];
+    ?hb[t,q]=='['{
+        x:=el[c,q,1];m:=vl[x];i:=0;wl?i<m{d:=vg[x,i];j:=vl[d['a']];?j>=g['a']{?j<=g['b']{
+            y:=nn;if ?_std_ {y=['k':'module-call','u':_id_,'n':n,'a':d['a']];}
+            ee {y=['k':'user-module-call','u':a,'n':n,'a':d['a']];}
+            hl[o,y,d['p'],d['s']];
+        }}i=i1+;}rv;
+    }
+    _count_:=g['b'];?g['d']==0{rv;}
+    wl?_count_>=g['a']{
+        x:=ej[c,q,_count_];m:=vl[x];i:=0;wl?i<m{d:=vg[x,i];
+            y:=nn;if ?_std_ {y=['k':'module-call','u':_id_,'n':n,'a':d['a']];}
+            ee {y=['k':'user-module-call','u':a,'n':n,'a':d['a']];}
+            _pen_:=_count_ g['a'] -;_pen_=_pen_3*;hl[o,y,d['p'],d['s'] _pen_+];i=i1+;}
+        ?_count_==0{bl}_count_=_count_1-;
+    }
+    rv;
+}
+
+##! Parse one member of a known module alias. p points at the first member token.
+##! ns is true for active-namespace spelling and affects only fingerprints/diagnostics;
+##! linked identity still comes from the alias in u.
+~kx c u p o _ns_ {
+    r:=c['r'];_has_:=in[u,r];?!_has_{rv;}z:=r[u];t:=c['t'];f:=z['f'];g:=z['g'];h:=z['c'];
+    k:=hd[t,p];
+    ##! Public module callable.
+    ?k=='LOWER'{?hd[t,p1+]=='LOWER'{n:=hb[t,p] hb[t,p1+]+;_hf_:=in[n,f];?_hf_{kw[c,u,n,f[n],p2+,o,z];rv;}}}
+    ##! Public exported variable.
+    _vn_:='';_ve_:=p;
+    ?k=='LOWER'{_vn_=hb[t,p];_ve_=p1+;}
+    ?k=='EXT'{_vn_=hb[t,p];_ve_=p1+;}
+    ?_vn_!=''{_hg_:=in[_vn_,g];?_hg_{?_ve_>p{y:=['k':'user-module-var','u':u,'n':_vn_];hl[o,y,_ve_,0];rv;}}}
+    ##! Public class constructor/static traversal.
+    ?k=='UPPER'{?hd[t,p1+]=='UPPER'{_cn_:=hb[t,p] hb[t,p1+]+;_hc_:=in[_cn_,h];?_hc_{
+        _cs_:=h[_cn_];_cp_:=p2+;
+        ?hb[t,_cp_]=='.'{
+            _sp_:=_cp_1+;_sk_:=hd[t,_sp_];_sf_:=_cs_['g'];_sm_:=_cs_['m'];
+            ?_sk_=='LOWER'{?hd[t,_sp_1+]=='LOWER'{_sn_:=hb[t,_sp_] hb[t,_sp_1+]+;_hm_:=in[_sn_,_sm_];?_hm_{
+                _sg_:=_sm_[_sn_];_q_:=_sp_2+;
+                ?hb[t,_q_]=='['{_pa_:=el[c,_q_,1];_pn_:=vl[_pa_];_pi_:=0;wl?_pi_<_pn_{_pc_:=vg[_pa_,_pi_];_an_:=vl[_pc_['a']];?_an_>=_sg_['a']{?_an_<=_sg_['b']{y:=['k':'user-module-class-method','u':u,'c':_cn_,'n':_sn_,'a':_pc_['a']];hl[o,y,_pc_['p'],_pc_['s']];}}_pi_=_pi_1+;}rv;}
+                ?_sg_['d']{_ca_:=_sg_['b'];wl?_ca_>=_sg_['a']{_as_:=ej[c,_q_,_ca_];_an_:=vl[_as_];_ai_:=0;wl?_ai_<_an_{_ac_:=vg[_as_,_ai_];y:=['k':'user-module-class-method','u':u,'c':_cn_,'n':_sn_,'a':_ac_['a']];_pen_:=_ca_ _sg_['a'] -;_pen_=_pen_3*;hl[o,y,_ac_['p'],_ac_['s'] _pen_+];_ai_=_ai_1+;}?_ca_==0{bl}_ca_=_ca_1-;}}
+                rv;
+            }}}
+            _fn_:='';_fe_:=_sp_;?_sk_=='LOWER'{_fn_=hb[t,_sp_];_fe_=_sp_1+;}?_sk_=='EXT'{_fn_=hb[t,_sp_];_fe_=_sp_1+;}
+            ?_fn_!=''{_hsg_:=in[_fn_,_sf_];?_hsg_{y:=['k':'user-module-class-member','u':u,'c':_cn_,'n':_fn_];hl[o,y,_fe_,0];rv;}}
+            rv;
+        }
+        ##! Constructor call.
+        ?hb[t,_cp_]=='['{
+            _packs_:=el[c,_cp_,1];_pn_:=vl[_packs_];_pi_:=0;
+            wl?_pi_<_pn_{_pc_:=vg[_packs_,_pi_];_an_:=vl[_pc_['a']];?_an_>=_cs_['a']{?_an_<=_cs_['b']{y:=['k':'user-module-class-call','u':u,'n':_cn_,'a':_pc_['a']];hl[o,y,_pc_['p'],_pc_['s']];}}_pi_=_pi_1+;}rv;
+        }
+        _ca_:=_cs_['b'];wl?_ca_>=_cs_['a']{_as_:=ej[c,_cp_,_ca_];_an_:=vl[_as_];_ai_:=0;wl?_ai_<_an_{_ac_:=vg[_as_,_ai_];y:=['k':'user-module-class-call','u':u,'n':_cn_,'a':_ac_['a']];_pen_:=_ca_ _cs_['a'] -;_pen_=_pen_3*;hl[o,y,_ac_['p'],_ac_['s'] _pen_+];_ai_=_ai_1+;}?_ca_==0{bl}_ca_=_ca_1-;}rv;
+    }}}
+    rv;
+}
+
+##! Explicit alias.member atoms.
+~ky c p o {
+    t:=c['t'];k:=hd[t,p];q:=p;
+    ?k=='LOWER'{q=p1+;}?k=='EXT'{q=p1+;}?k=='UPPER'{?hd[t,p1+]=='UPPER'{q=p2+;}}
+    ?q==p{rv;}?hb[t,q]!='.'{rv;}
+    a:=ks[c,p];?a==nn{rv;}u:=a['n'];r:=c['r'];_has_:=in[u,r];?!_has_{rv;}z:=r[u];?z['s']{rv;}kx[c,u,q1+,o,0];rv;
+}
+
+##! Bare atoms resolved through the active lexical namespace.
+~kz c p o {
+    u:=kr[c,p];?u==nn{rv;}kx[c,u,p,o,1];rv;
+}
+
+##! Plain one-character variable atom when a hard callable spelling does not own it.
+~kc c p o {
+    t:=c['t']; ?hd[t,p]!='LOWER'{rv;}?kv[c,p]{rv;}
+    ?hb[t,p1+]=='.'{_ma_:=c['u'];_ur_:=c['r'];_mn_:=hb[t,p];_isalias_:=in[_mn_,_ma_];?!_isalias_{_isalias_=in[_mn_,_ur_];}?_isalias_{rv;}}
+    s:=c['s']; n:=ea[c,p]; z:=0; b:=0;
+    ?n!=''{?in[n,s]{g:=s[n];?hb[t,p2+]=='['{z=1;}?g['d']{?g['a']==0{?g['b']==0{_kchard_:=ja[n];?!_kchard_{b=1;}}}}}}
+    ?z{rv;} ?b{rv;}
+    y:=hn['var',hb[t,p]];hl[o,y,p1+,0];rv;
+}
+
+##! Cast atoms.
+~kd c p o {
+    t:=c['t']; a:=vn[]; n:=0; i:=0; d:=nn;
+    ?hb[t,p]!='@'{rv;}
+    r:=eb[c,p];?r==nn{rv;} q:=r['p']; x:=r['t'];
+    ?hb[t,q]=='|'{
+        a=ez[c,q1+];n=vl[a];i=0;wl?i<n{d:=vg[a,i];?hb[t,d['p']]=='|'{y:=['k':'cast','t':x,'v':d['e'],'g':1];hl[o,y,d['p']1+,d['s']];}i=i1+;}rv;
+    }
+    a=ez[c,q];n=vl[a];?n<=0{rv;}e:=0;i:=0;wl?i<n{d:=vg[a,i];?d['p']>e{e=d['p'];}i=i1+;}
+    i=0;wl?i<n{d=vg[a,i];?d['p']==e{y:=['k':'cast','t':x,'v':d['e'],'g':0];hl[o,y,d['p'],d['s']];}i=i1+;}
+    rv;
+}
+
+##! Dynamic cast atoms. Static @type and frozen @[...] forms retain precedence.
+##! Direct descriptors are ty[...] results or descriptor variables; @|expr|value is
+##! the explicit descriptor boundary for complex descriptor expressions.
+~kk c p o {
+    t:=c['t'];a:=vn[];n:=0;i:=0;d:=nn;k:='';z:=0;m:=0;j:=0;q:=nn;y:=nn;
+    ?hb[t,p]!='@'{rv;}
+    r:=eb[c,p];?r!=nn{rv;}
+    ?hb[t,p1+]=='['{rv;}
+    _descs_:=vn[];_grouped_:=0;
+    ?hb[t,p1+]=='|' {
+        _grouped_=1;a=ez[c,p2+];n=vl[a];i=0;
+        wl?i<n{d:=vg[a,i];?hb[t,d['p']]=='|'{vp[_descs_,['e':d['e'],'p':d['p']1+,'s':d['s']]];}i=i1+;}
+    }
+    ee {
+        a=iz[c,p1+];n=vl[a];i=0;
+        wl?i<n{
+            d=vg[a,i];k=d['e']['k'];z=0;
+            ?k=='var'{z=1;}?k=='ext'{z=1;}?k=='call'{?d['e']['n']=='ty'{z=1;}}
+            ?z{vp[_descs_,d];}
+            i=i1+;
+        }
+    }
+    n:=vl[_descs_];i:=0;
+    wl?i<n{
+        d=vg[_descs_,i];a=ez[c,d['p']];m:=vl[a];
+        ?m>0{
+            _end_:=0;j=0;wl?j<m{q=vg[a,j];?q['p']>_end_{_end_=q['p'];}j=j1+;}
+            j=0;wl?j<m{q=vg[a,j];?q['p']==_end_{y=['k':'dynamic-cast','t':d['e'],'v':q['e'],'g':_grouped_];hl[o,y,q['p'],d['s'] q['s']+];}j=j1+;}
+        }
+        i=i1+;
+    }
+    rv;
+}
+
+##! Boolean/list/map atoms.
+~ke c p o {
+    t:=c['t'];x:=hb[t,p];a:=vn[];n:=0;i:=0;y:=nn;
+    ?x=='?'{a=je[c,p];n=vl[a];i=0;wl?i<n{vp[o,vg[a,i]];i=i1+;}}
+    ?x=='@'{?hb[t,p1+]=='['{
+        a=ep[c,p1+,1];n=vl[a];i=0;wl?i<n{vp[o,vg[a,i]];i=i1+;}
+        a=es[c,p1+,1];n=vl[a];i=0;wl?i<n{vp[o,vg[a,i]];i=i1+;}
+    }}
+    ?x=='['{
+        a=ep[c,p,0];n=vl[a];i=0;wl?i<n{vp[o,vg[a,i]];i=i1+;}
+        a=es[c,p,0];n=vl[a];i=0;wl?i<n{vp[o,vg[a,i]];i=i1+;}
+    }
+    ?x=='.'{
+        _ms_:=0;_mp_:=p1+;?hb[t,_mp_]=='.'{_ms_=1;_mp_=_mp_1+;}
+        ?hd[t,_mp_]=='LOWER'{
+            ?hd[t,_mp_1+]=='LOWER'{?hb[t,_mp_2+]=='['{
+                _mn_:=hb[t,_mp_] hb[t,_mp_1+]+;_ma_:=el[c,_mp_2+,1];_mc_:=vl[_ma_];_mi_:=0;
+                wl?_mi_<_mc_{_mq_:=vg[_ma_,_mi_];y:=['k':'method','n':_mn_,'a':_mq_['a'],'r':nn,'c':nn,'z':_ms_,'u':0];hl[o,y,_mq_['p'],_mq_['s']];_mi_=_mi_1+;}rv;
+            }}
+            y=['k':'member','n':hb[t,_mp_],'a':nn,'c':nn,'z':_ms_];hl[o,y,_mp_1+,0];
+        }
+        ?hd[t,_mp_]=='EXT'{y=['k':'member','n':hb[t,_mp_],'a':nn,'c':nn,'z':_ms_];hl[o,y,_mp_1+,0];}
+    }
+    ?x=='^^'{?hb[t,p1+]=='.'{?hd[t,p2+]=='LOWER'{?hd[t,p3+]=='LOWER'{?hb[t,p4+]=='['{
+        _sn_:=hb[t,p2+] hb[t,p3+]+;_sa_:=el[c,p4+,1];_sc_:=vl[_sa_];_si_:=0;
+        wl?_si_<_sc_{_sq_:=vg[_sa_,_si_];y=['k':'method','n':_sn_,'a':_sq_['a'],'r':nn,'c':nn,'z':0,'u':1];hl[o,y,_sq_['p'],_sq_['s']];_si_=_si_1+;}
+    }}}}}
+    rv;
+}
+
+##! Callable-value and forced named invocation atoms.
+~kf c p o {
+    t:=c['t'];?hb[t,p]!='!'{rv;}s:=c['s'];k:=hd[t,p1+];z:=0;?k=='LOWER'{z=1;}?k=='EXT'{z=1;}
+    ?z{?hb[t,p2+]=='['{
+        f:=nn; ?k=='LOWER'{f=hn['var',hb[t,p1+]];}ee{f=hn['ext',hb[t,p1+]];}
+        a:=el[c,p2+,1];n:=vl[a];i:=0;wl?i<n{q:=vg[a,i];y:=['k':'invoke','f':f,'a':q['a']];hl[o,y,q['p'],q['s']];i=i1+;}
+    }}
+    ?hd[t,p1+]=='LOWER'{?hd[t,p2+]=='LOWER'{
+        n:=hb[t,p1+] hb[t,p2+]+;?in[n,s]{g:=s[n];q:=p3+;
+            ?hb[t,q]=='['{
+                a:=el[c,q,1];m:=vl[a];i:=0;wl?i<m{d:=vg[a,i];j:=vl[d['a']];?j>=g['a']{?j<=g['b']{y:=hx[n,d['a']];hl[o,y,d['p'],d['s']];}}i=i1+;}
+            }ee{a:=eo[c,n,g,q,1];m:=vl[a];i:=0;wl?i<m{vp[o,vg[a,i]];i=i1+;}}
+        }
+    }}
+    rv;
+}
+
+##! Ordinary inferred/packed named-call atoms.
+~kg c p o {
+    t:=c['t'];?hd[t,p]!='LOWER'{rv;}?hd[t,p1+]!='LOWER'{rv;}
+    n:=ea[c,p];s:=c['s'];_kghas_:=in[n,s];?!_kghas_{rv;}?ja[n]{rv;}g:=s[n];q:=p2+;
+    ?hb[t,q]=='['{
+        a:=el[c,q,1];m:=vl[a];i:=0;wl?i<m{d:=vg[a,i];j:=vl[d['a']];?j>=g['a']{?j<=g['b']{y:=hx[n,d['a']];hl[o,y,d['p'],d['s']4+];}}i=i1+;}rv;
+    }
+    ?g['d']{a:=eo[c,n,g,q,0];m:=vl[a];i:=0;wl?i<m{vp[o,vg[a,i]];i=i1+;}}
+    rv;
+}
+
+##! Qualified imported-module callable atoms. Standard modules carry canonical URI identity.
+~kl c p o {
+    t:=c['t'];_al_:=c['u'];_std_:=c['w'];_a_:='';q:=p;k:=hd[t,p];
+    ?k=='UPPER'{?hd[t,p1+]=='UPPER'{_a_=hb[t,p] hb[t,p1+]+;q=p2+;}}
+    ?_a_==''{?k=='LOWER'{_a_=hb[t,p];q=p1+;}?k=='EXT'{_a_=hb[t,p];q=p1+;}}
+    ?_a_==''{rv;} _hasa_:=in[_a_,_al_];?!_hasa_{rv;} ?hb[t,q]!='.'{rv;}
+    _uri_:=_al_[_a_];_hasu_:=in[_uri_,_std_];?!_hasu_{rv;}
+    _mem_:=_std_[_uri_];r:=q1+;?hd[t,r]!='LOWER'{rv;}?hd[t,r1+]!='LOWER'{rv;}
+    n:=hb[t,r] hb[t,r1+]+;_hasn_:=in[n,_mem_];?!_hasn_{rv;}g:=_mem_[n];e:=r2+;
+    ?hb[t,e]=='['{
+        a:=el[c,e,1];m:=vl[a];i:=0;wl?i<m{d:=vg[a,i];j:=vl[d['a']];?j>=g['a']{?j<=g['b']{y:=['k':'module-call','u':_uri_,'n':n,'a':d['a']];hl[o,y,d['p'],d['s']];}}i=i1+;}rv;
+    }
+    _count_:=g['b'];wl?_count_>=g['a']{
+        _ia_:=ej[c,e,_count_];_im_:=vl[_ia_];_ii_:=0;wl?_ii_<_im_{_id_:=vg[_ia_,_ii_];_iy_:=['k':'module-call','u':_uri_,'n':n,'a':_id_['a']];_pen_:=_count_ g['a'] -;_pen_=_pen_3*;hl[o,_iy_,_id_['p'],_id_['s'] _pen_+];_ii_=_ii_1+;}
+        ?_count_==0{bl}_count_=_count_1-;
+    }
+    rv;
+}
+
+##! Append one atom candidate plus any postfix [] expansions.
+~ki c q r {
+    t:=c['t'];_pf_:=hb[t,q['p']];_hm_:=0;
+    ?_pf_=='.'{_hp_:=q['p']1+;?hd[t,_hp_]=='LOWER'{?hd[t,_hp_1+]=='LOWER'{?hb[t,_hp_2+]=='['{_hm_=1;}}}}
+    ?_hm_==0{vp[r,q];}
+    ?_pf_!='['{?_pf_!='.'{rv;}}
+    a:=ey[c,q['e'],q['p'],q['s']];m:=vl[a];j:=0;
+    wl ?j<m {vp[r,vg[a,j]];j=j1+;}
+    rv;
+}
+
+##! Postfix [] expansion while retaining the split candidate.
+~kh c o {
+    r:=vn[];n:=vl[o];i:=0;
+    wl ?i<n {q:=vg[o,i];ki[c,q,r];i=i1+;}
+    rv ic[r];
+}
+
+##! Atom dispatcher kept intentionally shallow; individual families own their complexity.
+~iz c p {
+    o:=vn[];
+    ky[c,p,o];kz[c,p,o];ka[c,p,o]; kb[c,p,o]; kc[c,p,o]; kd[c,p,o]; kk[c,p,o]; ke[c,p,o]; kf[c,p,o]; kg[c,p,o]; kl[c,p,o];
+    r:=kh[c,o];rv r;
+}
+
+##! Minimum Boolean-separator crossing penalty for an expression candidate list.
+~jb c a _cand_ {
+    t:=c['t']; n:=vl[a]; _cut_:=2147483647$; i:=0;
+    wl?i<n{q:=vg[a,i];x:=hb[t,q['p']];?x=='+'{?q['p']<_cut_{_cut_=q['p'];}}?x=='/'{?q['p']<_cut_{_cut_=q['p'];}}i=i1+;}
+    ?_cut_<2147483647${?_cand_['p']>_cut_{rv 12$;}}
+    rv0;
+}
+
+##! Boolean primary / comparison candidates.
+~jc c p {
+    t:=c['t']; _out_:=vn[]; _inn_:=vn[]; n:=0; i:=0; q:=nn; x:=nn;
+    ##! [] groups logic expressions.
+    ?hb[t,p]=='['{
+        _inn_=jf[c,p1+];n=vl[_inn_];i=0;
+        wl?i<n{q:=vg[_inn_,i];?hb[t,q['p']]==']'{hl[_out_,q['e'],q['p']1+,q['s']];}i=i1+;}
+    }
+    ##! ! is logic NOT (callable invoke candidates are also supplied by ee below).
+    ?hb[t,p]=='!'{
+        _inn_=jc[c,p1+];n=vl[_inn_];i=0;
+        wl?i<n{q=vg[_inn_,i];x:=hv['not',q['e']];hl[_out_,x,q['p'],q['s']];i=i1+;}
+    }
+    _vals_:=ez[c,p]; n:=vl[_vals_]; i:=0;
+    wl?i<n{
+        l:=vg[_vals_,i];_op_:=hb[t,l['p']];_cmp_:=0;
+        ?_op_=='=='{_cmp_=1;}?_op_=='!='{_cmp_=1;}?_op_=='<'{_cmp_=1;}?_op_=='>'{_cmp_=1;}?_op_=='<='{_cmp_=1;}?_op_=='>='{_cmp_=1;}?_op_=='==='{_cmp_=1;}?_op_=='!=='{_cmp_=1;}
+        ?_cmp_{
+            _rights_:=ez[c,l['p']1+];_rn_:=vl[_rights_];j:=0;
+            wl?j<_rn_{r:=vg[_rights_,j];_pen_:=jb[c,_rights_,r];x:=ht[_op_,l['e'],r['e']];hl[_out_,x,r['p'],l['s'] r['s'] + _pen_ +];j=j1+;}
+        }
+        ee{
+            _pen_:=jb[c,_vals_,l];hl[_out_,l['e'],l['p'],l['s'] _pen_ +];
+        }
+        i=i1+;
+    }
+    rv ic[_out_];
+}
+
+##! Boolean AND precedence.
+~jd c p {
+    t:=c['t']; _out_:=vn[]; _first_:=jc[c,p];n:=vl[_first_];i:=0;
+    wl?i<n{a:=vg[_first_,i];vp[_out_,a];?hb[t,a['p']]=='+'{
+        _rest_:=jd[c,a['p']1+];_rn_:=vl[_rest_];j:=0;
+        wl?j<_rn_{b:=vg[_rest_,j];x:=hu['and',a['e'],b['e']];hl[_out_,x,b['p'],a['s'] b['s'] +];j=j1+;}
+    }i=i1+;}
+    rv ic[_out_];
+}
+
+##! Boolean OR precedence.
+~jf c p {
+    t:=c['t'];_out_:=vn[];_first_:=jd[c,p];n:=vl[_first_];i:=0;
+    wl?i<n{a:=vg[_first_,i];vp[_out_,a];?hb[t,a['p']]=='/'{
+        _rest_:=jf[c,a['p']1+];_rn_:=vl[_rest_];j:=0;
+        wl?j<_rn_{b:=vg[_rest_,j];x:=hu['or',a['e'],b['e']];hl[_out_,x,b['p'],a['s'] b['s'] +];j=j1+;}
+    }i=i1+;}
+    rv ic[_out_];
+}
+
+##! Logic mode beginning at ?.
+~je c p {
+    _out_:=vn[];t:=c['t'];?hb[t,p]!='?'{rv _out_;}
+    a:=jf[c,p1+];n:=vl[a];i:=0;
+    wl?i<n{q:=vg[a,i];x:=hv['bool',q['e']];hl[_out_,x,q['p'],q['s']];i=i1+;}
+    rv ic[_out_];
+}
+
+##! Build a fresh expression-parser context from an existing token vector.
+~jj t _sigs_ {
+    m:=[:];c:=[:];u:=[:];w:=sb[];r:=[:];n:=[:];a:=nn;rv ['t':t,'s':_sigs_,'c':c,'m':m,'u':u,'w':w,'r':r,'n':n,'a':a,'N':0];
+}
+
+##! Source convenience wrapper.
+~jg s _sigs_ {
+    t:=ha[s];rv jj[t,_sigs_];
+}
+
+##! Choose the unique cheapest complete expression parse.
+~jh s _sigs_ {
+    c:=jg[s,_sigs_];t:=c['t'];a:=ez[c,0];n:=vl[a];
+    _best_:=2147483647$; _chosen_:=nn; _fp_:=''; _ties_:=0;i:=0;
+    wl?i<n{q:=vg[a,i];?hd[t,q['p']]=='EOF'{
+        ?q['s']<_best_{_best_=q['s'];_chosen_=q['e'];_fp_=ib[_chosen_];_ties_=1;}
+        ee{?q['s']==_best_{z:=ib[q['e']];?z!=_fp_{_ties_=_ties_1+;}}}
+    }i=i1+;}
+    ?_chosen_==nn{er'v1 expression parser: incomplete expression';}
+    ?_ties_>1{er'v1 expression parser: ambiguous cheapest expression';}
+    rv _chosen_;
+}
+
+##! Convenience: frozen builtin signatures + semantic fingerprint.
+~ji s {
+    _sigs_:=sa[];x:=jh[s,_sigs_];rv ib[x];
+}

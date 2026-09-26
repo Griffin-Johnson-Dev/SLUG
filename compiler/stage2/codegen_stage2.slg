@@ -1,0 +1,1426 @@
+##! SLUG Stage 2 module-aware, ordered direct-C backend.
+##! This intentionally reuses the proven Stage-1 AST subset while replacing the two
+##! largest bootstrap compromises: flattened module symbols and host-C evaluation order.
+>'../v1/vector_core.slg'
+>'module_graph.slg'
+>'c_support.slg'
+>'@std/fs':FS
+
+##! Resolve a source variable to a module-global C symbol after lexical locals fail.
+~db m n {
+    r := m['rg'];
+    y := in[n, r];
+    ?y == @b|0| { z := nn; rv z; }
+    p := r[n];
+    g := p['cg'];
+    y = in[n, g];
+    ?y == @b|0| { z := nn; rv z; }
+    z := g[n];
+    rv z;
+}
+
+##! Resolve a source callable to its provider's native C symbol.
+~dc m n {
+    r := m['rf'];
+    y := in[n, r];
+    ?y == @b|0| { z := nn; rv z; }
+    p := r[n];
+    f := p['cf'];
+    y = in[n, f];
+    ?y == @b|0| { z := nn; rv z; }
+    z := f[n];
+    rv z;
+}
+
+##! Emit one SlugValue temporary assignment and return the temporary name.
+~dd s d x {
+    t := cc[s];
+    s['dt'][t] := 1;
+    q := 'SlugValue ' t +;
+    q = q ' = ' +;
+    q = q x +;
+    q = q ';' +;
+    cb[s, d, q];
+    q = 'sv_local_root_add(&_slug_roots, &' t +;
+    q = q ');' +;
+    cb[s, d, q];
+    cb[s, d, 'sv_gc_safepoint();'];
+    rv t;
+}
+
+
+##! Deterministic native names and class metadata for the compact object backend.
+~df m c {a:=@s|m['id']|;z:='slug_m' a +;z=z '_cl_' +;z=z cq[c]+;rv z;}
+~dg m c n {z:=df[m,c];z=z '_sf_' +;z=z cq[n]+;rv z;}
+~dh m c {z:=df[m,c];z=z '_init'+;rv z;}
+~di m c {z:=df[m,c];z=z '_ctor'+;rv z;}
+~dj m c n z {q:=df[m,c];if ?z {q=q '_sm_' +;}ee {q=q '_im_' +;}q=q cq[n]+;rv q;}
+~dk m c {z:=df[m,c];z=z '_dtor'+;rv z;}
+~dl n {z:='slug_dispatch_' cq[n]+;rv z;}
+
+##! Resolve one aliased user module to its canonical provider module object.
+-~ev m u {a:=m['al'];h:=in[u,a];?h==@b|0|{er 'unknown user module alias during Stage-2 C generation';}z:=a[u];rv z;}
+
+##! Resolve a class spelling to the module that owns its native symbols.
+-~fa m c {a:=m['cl'];h:=in[c,a];?h{rv m;}r:=m['rc'];h=in[c,r];?h{z:=r[c];rv z;}z:=nn;rv z;}
+
+##! Resolve inherited method ownership as both provider module and owner class.
+-~fb m c n z {
+    p:=fa[m,c];?p==nn{r:=nn;rv r;}x:=p['cl'][c];a:=x['b'];k:=vl[a];i:=0;
+    wl?i<k{q:=vg[a,i];?q['k']=='function'{?q['n']==n{?q['z']==z{r:=['m':p,'c':c];rv r;}}}i=i1+;}
+    h:=x['h'];?h!=nn{r:=fb[p,h,n,z];rv r;}r:=nn;rv r;
+}
+
+##! Resolve inherited static-field ownership as provider module plus owner class.
+-~fc m c n {
+    p:=fa[m,c];?p==nn{r:=nn;rv r;}x:=p['cl'][c];a:=x['b'];k:=vl[a];i:=0;
+    wl?i<k{q:=vg[a,i];?q['k']=='set-member'{t:=q['t'];?t['z']{?q['d']{?t['n']==n{r:=['m':p,'c':c];rv r;}}}}i=i1+;}
+    h:=x['h'];?h!=nn{r:=fc[p,h,n];rv r;}r:=nn;rv r;
+}
+~dm m c {p:=fa[m,c];?p==nn{z:=nn;rv z;}a:=p['cl'];z:=a[c];rv z;}
+~dn m c n z {r:=fb[m,c,n,z];?r==nn{q:=nn;rv q;}q:=r['c'];rv q;}
+~do m c n {r:=fc[m,c,n];?r==nn{q:=nn;rv q;}q:=r['c'];rv q;}
+~dp m c n {r:=fc[m,c,n];?r==nn{er 'unknown static class field';}z:=dg[r['m'],r['c'],n];rv z;}
+~dq s m e a d {
+    q:='(SlugValue[])\{';n:=vl[a];i:=0;
+    wl ?i<n {?i>0{q=q ', ' +;}v:=ct[s,m,e,vg[a,i],d];q=q v +;i=i1+;}
+    q=q '\}' +;?n==0{q='NULL';}z:=['q':q,'n':n];rv z;
+}
+
+##! Emit one method call as a raw SlugResult expression.
+~dr s m e x d {
+    ?x['k']!='method'{z:=nn;rv z;}
+    n:=x['n'];c:=x['c'];r:=x['r'];_su_:=x['u'];_st_:=x['z'];
+    if ?_su_ {
+        _cu_:=s['cn'];_se_:=s['se'];?_cu_==nn{er 'super method outside class';}?_se_==nn{er 'super method outside instance context';}
+        _cx_:=dm[m,_cu_];_pa_:=_cx_['h'];?_pa_==nn{er 'super method without parent';}
+        _ow_:=fb[m,_pa_,n,0];?_ow_==nn{er 'unknown super method';}
+        _ar_:=dq[s,m,e,x['a'],d];z:=dj[_ow_['m'],_ow_['c'],n,0];z=z '(' +;z=z _se_ +;z=z ', ' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+    }
+    ?c!=nn{
+        _ow_:=fb[m,c,n,1];?_ow_==nn{er 'unknown static class method';}
+        _ar_:=dq[s,m,e,x['a'],d];z:=dj[_ow_['m'],_ow_['c'],n,1];z=z '(' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+    }
+    ?r!=nn{
+        _re_:=ct[s,m,e,r,d];_ar_:=dq[s,m,e,x['a'],d];z:=dl[n];z=z '(sv_as_object(' +;z=z _re_ +;z=z '), ' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+    }
+    _cu_:=s['cn'];?_cu_==nn{er 'current method outside class';}
+    if ?_st_ {
+        _ow_:=fb[m,_cu_,n,1];?_ow_==nn{er 'unknown current static method';}
+        _ar_:=dq[s,m,e,x['a'],d];z:=dj[_ow_['m'],_ow_['c'],n,1];z=z '(' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+    }
+    _se_:=s['se'];?_se_==nn{er 'instance method from static context';}
+    _ar_:=dq[s,m,e,x['a'],d];z:=dl[n];z=z '(' +;z=z _se_ +;z=z ', ' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+}
+
+##! Emit one object/static member write and return the resulting SlugValue C name.
+~ds s m e t x d w i z {
+    n:=t['n'];c:=t['c'];a:=t['a'];_st_:=t['z'];
+    ?c!=nn{v:=ct[s,m,e,x,d];g:=dp[m,c,n];q:=g ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];rv g;}
+    ?a!=nn{
+        b:=ct[s,m,e,a,d];v:=ct[s,m,e,x,d];q:='sv_object_set(' b +;q=q ', ' +;q=q ck[n] +;q=q ', ' +;q=q v +;q=q ', ' +;
+        if ?w {q=q 'true' +;}ee{q=q 'false' +;}q=q ', ' +;if ?i{q=q 'true' +;}ee{q=q 'false' +;}q=q ', ' +;if ?z{q=q 'true' +;}ee{q=q 'false' +;}q=q ')' +;r:=dd[s,d,q];rv r;
+    }
+    ?_st_{_cl_:=s['cn'];?_cl_==nn{er 'static field write outside class';}v:=ct[s,m,e,x,d];g:=dp[m,_cl_,n];q:=g ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];rv g;}
+    _se_:=s['se'];?_se_==nn{er 'instance field write outside instance context';}v:=ct[s,m,e,x,d];q:='sv_object_set(sv_object_value(' _se_ +;q=q '), ' +;q=q ck[n] +;q=q ', ' +;q=q v +;q=q ', ' +;
+    if ?w {q=q 'true' +;}ee{q=q 'false' +;}q=q ', ' +;if ?i{q=q 'true' +;}ee{q=q 'false' +;}q=q ', ' +;if ?z{q=q 'true' +;}ee{q=q 'false' +;}q=q ')' +;r:=dd[s,d,q];rv r;
+}
+
+##! Attach native function/global symbol maps to every module and validate direct imports
+##! against the builtin namespace. Own module definitions may intentionally shadow builtins.
+~de s g {
+    b := s['b'];
+    a := g['mods'];
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        m := vg[a, i];
+        f := [:];
+        v := [:];
+        _cm_ := [:];
+        p := m['ast'];
+        _pn_ := vl[p];
+        j := 0;
+        wl ?j < _pn_ {
+            x := vg[p, j];
+            k := x['k'];
+            ?k == 'function' {
+                q := x['n'];
+                z := cr[m, q];
+                f[q] := z;
+            }
+            ?k == 'class' {
+                q := x['n'];
+                _ci_ := s['cid'];
+                s['cid'] = _ci_ 1 +;
+                x['id'] := _ci_;
+                _cm_[q] := x;
+            }
+            y := 0;
+            ?k == 'define' { y = 1; }
+            ?y {
+                q := x['n'];
+                z := cs[m, q];
+                v[q] := z;
+            }
+            _mu_ := 0; ?k == 'define-multi' { _mu_=1; }
+            ?_mu_ {
+                _ma_ := x['a']; _mn_ := vl[_ma_]; _mi_ := 0;
+                wl ?_mi_ < _mn_ { q:=vg[_ma_,_mi_]; z:=cs[m,q]; v[q]:=z; _mi_=_mi_1+; }
+            }
+            j = j 1 +;
+        }
+        m['cf'] := f;
+        m['cg'] := v;
+        m['cl'] := _cm_;
+        i = i 1 +;
+    }
+
+    ##! A direct import cannot inject a builtin spelling into the importing scope.
+    i = 0;
+    wl ?i < n {
+        m := vg[a, i];
+        d := m['direct'];
+        _dn_ := vl[d];
+        _di_ := 0;
+        wl ?_di_ < _dn_ {
+            c := vg[d, _di_];
+            p := c['aud'];
+            _pn_ := vl[p];
+            j := 0;
+            wl ?j < _pn_ {
+                x := vg[p, j];
+                k := x['k'];
+                y := 0;
+                ?k == 'function' { _pr_:=x['p']; ?!_pr_ { y = 1; } }
+                ?k == 'export' { y = 1; }
+                ?y {
+                    q := x['n'];
+                    _has_ := in[q, b];
+                    ?_has_ { er 'direct import collision with Stage-2 builtin'; }
+                }
+                j = j 1 +;
+            }
+            _di_ = _di_ 1 +;
+        }
+        i = i 1 +;
+    }
+    rv;
+}
+
+
+##! K7B: container-only expression emission. Deep list/map nesting recurses here
+##! instead of through the full general-purpose ct frame.
+~cw s m e x d {
+    k:=x['k'];
+    ?k=='list'{
+        a:=x['a'];n:=vl[a];?n==0{rv 'sv_list_empty(false)';}
+        q:='(SlugValue[])\{';i:=0;
+        wl?i<n{
+            ?i>0{q=q ', ' +;}y:=vg[a,i];_yk_:=y['k'];_cn_:=0;v:='';?_yk_=='list'{_cn_=1;}?_yk_=='map'{_cn_=1;}
+            if ?_cn_{v=cw[s,m,e,y,d];}ee{v=ct[s,m,e,y,d];}
+            q=q v +;i=i1+;
+        }
+        q=q '\}' +;q='sv_list_from(' q +;q=q ', ' +;q=q @s|n| +;q=q ', false)' +;z:=dd[s,d,q];rv z;
+    }
+    ?k=='map'{
+        a:=x['a'];n:=vl[a];?n==0{rv 'sv_map_empty(false)';}
+        q:='(SlugValue[])\{';i:=0;
+        wl?i<n{
+            ?i>0{q=q ', ' +;}y:=vg[a,i];_kx_:=y['a'];_vx_:=y['b'];_kt_:=_kx_['k'];_vt_:=_vx_['k'];_kn_:=0;_vn_:=0;_kv_:='';_vv_:='';
+            ?_kt_=='list'{_kn_=1;}?_kt_=='map'{_kn_=1;}?_vt_=='list'{_vn_=1;}?_vt_=='map'{_vn_=1;}
+            if ?_kn_{_kv_=cw[s,m,e,_kx_,d];}ee{_kv_=ct[s,m,e,_kx_,d];}
+            if ?_vn_{_vv_=cw[s,m,e,_vx_,d];}ee{_vv_=ct[s,m,e,_vx_,d];}
+            q=q _kv_ +;q=q ', ' +;q=q _vv_ +;i=i1+;
+        }
+        q=q '\}' +;q='sv_map_from(' q +;q=q ', ' +;q=q @s|n| +;q=q ', false)' +;z:=dd[s,d,q];rv z;
+    }
+    er 'container emitter received non-container expression';
+}
+
+##! Ordered expression lowering. Recursive calls emit their prelude immediately, so every
+##! observable subexpression runs left-to-right before the enclosing operation is emitted.
+~ct s m e x d {
+    q := '';
+    _c0_ := '';
+    k := x['k'];
+    ?k == 'list' { z := cw[s, m, e, x, d]; rv z; }
+    ?k == 'map' { z := cw[s, m, e, x, d]; rv z; }
+    ?k == 'default' {rv 'sv_default()';}
+
+    ?k == 'lit' {
+        t := x['t'];
+        r := x['r'];
+        ?t == 'null' { rv 'sv_null()'; }
+        ?t == 'int' {
+            n := ln[r];
+            ?n > 0 {
+                q = n 1 -;
+                ?r[q] == '$' { r = r[:q]; }
+            }
+            _ul_ := 0; _rn_ := ln[r];
+            ?_rn_ > 19 { _ul_ = 1; }
+            ?_rn_ == 19 { ?r > '9223372036854775807' { _ul_ = 1; } }
+            z := '';
+            if ?_ul_ {
+                z = 'sv_uint(UINT64_C(' r +;
+                z = z '))' +;
+            }
+            ee {
+                z = 'sv_int(INT64_C(' r +;
+                z = z '))' +;
+            }
+            rv z;
+        }
+        ?t == 'float' {
+            ?r[0] == '.' { r = '0' r +; }
+            z := 'sv_float(' r +;
+            z = z ')' +;
+            rv z;
+        }
+        ?t == 'string' {
+            q = cj[r];
+            _sb_ := by[q];
+            _sn_ := ln[_sb_];
+            _st_ := @s|_sn_|;
+            q = ck[q];
+            z := 'sv_string_literal_n((const unsigned char*)' q +;
+            z = z ', ' +;
+            z = z _st_ +;
+            z = z ')' +;
+            rv z;
+        }
+        er 'unsupported Stage-2 literal kind';
+    }
+
+    ?k == 'assign-expr' {
+        v:=ct[s,m,e,x['v'],d];
+        _an_:=x['n'];
+        _en_:=vl[e];_ei_:=_en_1-;_em_:=vg[e,_ei_];_ah_:=in[_an_,_em_];
+        _ac_:=nn;
+        if ?_ah_ { _ac_=_em_[_an_]; }
+        ee { _ac_=db[m,_an_]; }
+        if ?_ac_==nn {
+            _ac_=ch[s,e,_an_];
+            q:='SlugValue ' _ac_ +;q=q ' = '+;q=q v+;q=q ';'+;cb[s,d,q];
+            q='sv_local_root_add(&_slug_roots, &' _ac_ +;q=q ');'+;cb[s,d,q];
+        }
+        ee { q=_ac_ ' = '+;q=q v+;q=q ';'+;cb[s,d,q]; }
+        rv _ac_;
+    }
+
+    ?k == 'format' {
+        a:=x['a'];n:=vl[a];
+        _fa_:=dd[s,d,'sv_string_literal_n((const unsigned char*)"", 0)'];
+        i:=0;
+        wl ?i<n {
+            y:=vg[a,i];
+            _fc_:='';_fp_:='';
+            if ?y['k']=='text' {
+                q=cj[y['r']];
+                _fb_:=by[q];
+                _fn_:=ln[_fb_];
+                _ft_:=@s|_fn_|;
+                q=ck[q];
+                _fc_='sv_string_literal_n((const unsigned char*)' q +;
+                _fc_=_fc_ ', ' +;
+                _fc_=_fc_ _ft_ +;
+                _fc_=_fc_ ')' +;
+                _fp_=dd[s,d,_fc_];
+            }
+            ee {
+                _fv_:=ct[s,m,e,y['v'],d];
+                _fc_='sv_cast_s(' _fv_ +;
+                _fc_=_fc_ ')' +;
+                _fp_=dd[s,d,_fc_];
+            }
+            _fc_='sv_add(' _fa_ +;
+            _fc_=_fc_ ', ' +;
+            _fc_=_fc_ _fp_ +;
+            _fc_=_fc_ ')' +;
+            _fa_=dd[s,d,_fc_];
+            i=i1+;
+        }
+        rv _fa_;
+    }
+
+    ?k == 'var' {
+        n := x['n'];
+        z := cg[e, n];
+        ?z != nn { rv z; }
+        z = db[m, n];
+        ?z == nn { er 'undefined binding during Stage-2 C generation'; }
+        rv z;
+    }
+
+    ?k == 'bin' {
+        a := ct[s, m, e, x['a'], d];
+        b := ct[s, m, e, x['b'], d];
+        o := x['o'];
+        f := ['+': 'sv_add', '-': 'sv_sub', '*': 'sv_mul', '/': 'sv_div', '//': 'sv_idiv', '%': 'sv_mod', '^': 'sv_pow'];
+        y := in[o, f];
+        ?y == @b|0| { er 'unsupported Stage-2 binary operator'; }
+        q = f[o] '(' +;
+        q = q a +;
+        q = q ', ' +;
+        q = q b +;
+        q = q ')' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'cmp' {
+        a := ct[s, m, e, x['a'], d];
+        b := ct[s, m, e, x['b'], d];
+        o := x['o'];
+        if ?o == '==' {
+            q = 'sv_bool(sv_equal(' a +;
+            q = q ', ' +;
+            q = q b +;
+            q = q '))' +;
+        }
+        ee {
+            if ?o == '!=' {
+                q = 'sv_bool(!sv_equal(' a +;
+                q = q ', ' +;
+                q = q b +;
+                q = q '))' +;
+            }
+            ee {
+                if ?o == '===' {
+                    q = 'sv_bool(sv_identical(' a +;
+                    q = q ', ' +;
+                    q = q b +;
+                    q = q '))' +;
+                }
+                ee {
+                    if ?o == '!==' {
+                        q = 'sv_bool(!sv_identical(' a +;
+                        q = q ', ' +;
+                        q = q b +;
+                        q = q '))' +;
+                    }
+                    ee {
+                        q = 'sv_bool(sv_compare(' a +;
+                        q = q ', ' +;
+                        q = q b +;
+                        q = q ') ' +;
+                        q = q o +;
+                        q = q ' 0)' +;
+                    }
+                }
+            }
+        }
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'logic' {
+        a := ct[s, m, e, x['a'], d];
+        o := x['o'];
+        ?o!='and'{?o!='or'{er 'unsupported Stage-2 logic operator';}}
+        if ?o=='and' { q = 'sv_bool(false)'; }
+        ee { q = 'sv_bool(true)'; }
+        z := dd[s, d, q];
+        if ?o=='and' { q = 'if (sv_truthy(' a +; }
+        ee { q = 'if (!sv_truthy(' a +; }
+        q = q ')) \{' +;
+        cb[s, d, q];
+        b := ct[s, m, e, x['b'], d 1 +];
+        q = z ' = sv_bool(sv_truthy(' +;
+        q = q b +;
+        q = q '));' +;
+        cb[s, d 1 +, q];
+        cb[s, d, '\}'];
+        rv z;
+    }
+
+    ?k == 'bool' {
+        a := ct[s, m, e, x['v'], d];
+        q = 'sv_bool(sv_truthy(' a +;
+        q = q '))' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'not' {
+        a := ct[s, m, e, x['v'], d];
+        q = 'sv_bool(!sv_truthy(' a +;
+        q = q '))' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'unary' {
+        ?x['o'] != '-' { er 'unsupported Stage-2 unary operator'; }
+        a := ct[s, m, e, x['v'], d];
+        q = 'sv_neg(' a +;
+        q = q ')' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'cast' {
+        a := ct[s, m, e, x['v'], d];
+        t := x['t'];
+        if ?t == 'i' { q = 'sv_cast_i_width(' a +; q = q ', 64)' +; }
+        ee {
+            if ?t == 'b' { q = 'sv_cast_b(' a +; q = q ')' +; }
+            ee {
+                if ?t == 's' { q = 'sv_cast_s(' a +; q = q ')' +; }
+                ee {
+                    ?t != 'f' { er 'unsupported Stage-2 cast'; }
+                    q = 'sv_cast_f(' a +;
+                    q = q ')' +;
+                }
+            }
+        }
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'list' {
+        a := x['a'];
+        n := vl[a];
+        ?n == 0 { rv 'sv_list_empty(false)'; }
+        q = '(SlugValue[])\{';
+        i := 0;
+        wl ?i < n {
+            ?i > 0 { q = q ', ' +; }
+            y := vg[a, i];
+            v := ct[s, m, e, y, d];
+            q = q v +;
+            i = i 1 +;
+        }
+        q = q '\}' +;
+        q = 'sv_list_from(' q +;
+        q = q ', ' +;
+        q = q @s|n| +;
+        q = q ', false)' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'map' {
+        a := x['a'];
+        n := vl[a];
+        ?n == 0 { rv 'sv_map_empty(false)'; }
+        q = '(SlugValue[])\{';
+        i := 0;
+        wl ?i < n {
+            ?i > 0 { q = q ', ' +; }
+            y := vg[a, i];
+            _kv_ := ct[s, m, e, y['a'], d];
+            _vv_ := ct[s, m, e, y['b'], d];
+            q = q _kv_ +;
+            q = q ', ' +;
+            q = q _vv_ +;
+            i = i 1 +;
+        }
+        q = q '\}' +;
+        q = 'sv_map_from(' q +;
+        q = q ', ' +;
+        q = q @s|n| +;
+        q = q ', false)' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'index' {
+        a := ct[s, m, e, x['a'], d];
+        b := ct[s, m, e, x['b'], d];
+        q = 'sv_index(' a +;
+        q = q ', ' +;
+        q = q b +;
+        q = q ')' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'slice' {
+        a := ct[s, m, e, x['a'], d];
+        b := 'sv_null()';
+        c := 'sv_null()';
+        _d0_ := 'sv_null()';
+        y := x['b'];
+        ?y != nn { b = ct[s, m, e, y, d]; }
+        y = x['c'];
+        ?y != nn { c = ct[s, m, e, y, d]; }
+        y = x['d'];
+        ?y != nn { _d0_ = ct[s, m, e, y, d]; }
+        q = 'sv_slice(' a +;
+        q = q ', ' +;
+        q = q b +;
+        q = q ', ' +;
+        q = q c +;
+        q = q ', ' +;
+        q = q _d0_ +;
+        q = q ')' +;
+        z := dd[s, d, q];
+        rv z;
+    }
+
+    ?k == 'user-module-call' {
+        _pm_:=ev[m,x['u']];_fm_:=_pm_['cf'];_fn_:=x['n'];_fh_:=in[_fn_,_fm_];?!_fh_{er 'unknown aliased module callable during Stage-2 C generation';}
+        _ar_:=dq[s,m,e,x['a'],d];_raw_:=_fm_[_fn_] '(' +;_raw_=_raw_ @s|_ar_['n']| +;_raw_=_raw_ ', ' +;_raw_=_raw_ _ar_['q'] +;_raw_=_raw_ ')' +;q:='sv_result_first(' _raw_ +;q=q ')' +;z:=dd[s,d,q];rv z;
+    }
+    ?k == 'user-module-var' {
+        _pm_:=ev[m,x['u']];_gm_:=_pm_['cg'];_gn_:=x['n'];_gh_:=in[_gn_,_gm_];?!_gh_{er 'unknown aliased module variable during Stage-2 C generation';}z:=_gm_[_gn_];rv z;
+    }
+    ?k == 'user-module-class-call' {
+        _pm_:=ev[m,x['u']];_cn_:=x['n'];_po_:=fa[_pm_,_cn_];?_po_==nn{er 'unknown aliased module class during Stage-2 C generation';}
+        _ar_:=dq[s,m,e,x['a'],d];q:=di[_po_,_cn_];q=q '(' +;q=q @s|_ar_['n']| +;q=q ', ' +;q=q _ar_['q'] +;q=q ')' +;z:=dd[s,d,q];rv z;
+    }
+    ?k == 'user-module-class-member' {
+        _pm_:=ev[m,x['u']];z:=dp[_pm_,x['c'],x['n']];rv z;
+    }
+    ?k == 'user-module-class-method' {
+        _pm_:=ev[m,x['u']];_own_:=fb[_pm_,x['c'],x['n'],1];?_own_==nn{er 'unknown aliased static class method during Stage-2 C generation';}
+        _ar_:=dq[s,m,e,x['a'],d];_raw_:=dj[_own_['m'],_own_['c'],x['n'],1];_raw_=_raw_ '(' +;_raw_=_raw_ @s|_ar_['n']| +;_raw_=_raw_ ', ' +;_raw_=_raw_ _ar_['q'] +;_raw_=_raw_ ')' +;q:='sv_result_first(' _raw_ +;q=q ')' +;z:=dd[s,d,q];rv z;
+    }
+
+    ?k == 'module-call' {
+        a:=x['a'];n:=vl[a];q='(SlugValue[])\{';i:=0;
+        wl?i<n{?i>0{q=q ', ' +;}y:=vg[a,i];v:=ct[s,m,e,y,d];q=q v +;i=i1+;}
+        q=q '\}' +;?n==0{q='NULL';}
+        _c0_=cz[x['u'],x['n']];?_c0_==nn{er'unknown standard capability during Stage-2 C generation';}
+        _c0_=_c0_ '(' +;_c0_=_c0_ @s|n| +;_c0_=_c0_ ', ' +;_c0_=_c0_ q +;_c0_=_c0_ ')' +;
+        z:=dd[s,d,_c0_];rv z;
+    }
+
+    ?k == 'class-call' {
+        _cl_:=x['n'];?_cl_==''{er 'invalid class call';}_pm_:=fa[m,_cl_];?_pm_==nn{er 'unknown class during Stage-2 C generation';}
+        _ar_:=dq[s,m,e,x['a'],d];q:=di[_pm_,_cl_];q=q '(' +;q=q @s|_ar_['n']| +;q=q ', ' +;q=q _ar_['q'] +;q=q ')' +;z:=dd[s,d,q];rv z;
+    }
+    ?k == 'member' {
+        _mn_:=x['n'];_mc_:=x['c'];_ma_:=x['a'];_ms_:=x['z'];
+        ?_mc_!=nn{z:=dp[m,_mc_,_mn_];rv z;}
+        ?_ma_!=nn{_mb_:=ct[s,m,e,_ma_,d];q:='sv_object_get(' _mb_ +;q=q ', ' +;q=q ck[_mn_] +;q=q ')' +;z:=dd[s,d,q];rv z;}
+        ?_ms_{_mh_:=s['cn'];?_mh_==nn{er 'static field outside class';}z:=dp[m,_mh_,_mn_];rv z;}
+        _mj_:=s['se'];?_mj_==nn{er 'instance field outside instance context';}q:='sv_object_get(sv_object_value(' _mj_ +;q=q '), ' +;q=q ck[_mn_] +;q=q ')' +;z:=dd[s,d,q];rv z;
+    }
+    ?k == 'method' {_mr_:=dr[s,m,e,x,d];q:='sv_result_first(' _mr_ +;q=q ')' +;z:=dd[s,d,q];rv z;}
+    ?k == 'set-member' {z:=ds[s,m,e,x['t'],x['v'],d,1,x['i'],0];rv z;}
+
+    ?k == 'call' {
+        a := x['a'];
+        n := vl[a];
+        q = '(SlugValue[])\{';
+        i := 0;
+        wl ?i < n {
+            ?i > 0 { q = q ', ' +; }
+            y := vg[a, i];
+            v := ct[s, m, e, y, d];
+            q = q v +;
+            i = i 1 +;
+        }
+        q = q '\}' +;
+        ?n == 0 { q = 'NULL'; }
+        _name_ := x['n'];
+        _uf_ := dc[m, _name_];
+        if ?_uf_ != nn {
+            _c0_ = 'sv_result_first(' _uf_ +;
+            _c0_ = _c0_ '(' +;
+            _c0_ = _c0_ @s|n| +;
+            _c0_ = _c0_ ', ' +;
+            _c0_ = _c0_ q +;
+            _c0_ = _c0_ '))' +;
+        }
+        ee {
+            b := s['b'];
+            _has_ := in[_name_, b];
+            ?_has_ == @b|0| { er 'unknown callable during Stage-2 C generation'; }
+            _c0_ = b[_name_] '(' +;
+            _c0_ = _c0_ @s|n| +;
+            _c0_ = _c0_ ', ' +;
+            _c0_ = _c0_ q +;
+            _c0_ = _c0_ ')' +;
+        }
+        z := dd[s, d, _c0_];
+        rv z;
+    }
+
+    er 'unsupported Stage-2 expression in C backend';
+}
+
+##! Emit a raw named-user-function call as SlugResult. Returns nn for non-user calls.
+~dv s m e x d {
+    ?x['k']=='method'{z:=dr[s,m,e,x,d];rv z;}
+    ?x['k']=='user-module-call'{
+        _pm_:=ev[m,x['u']];_fm_:=_pm_['cf'];_fn_:=x['n'];_fh_:=in[_fn_,_fm_];?!_fh_{er 'unknown aliased module callable during Stage-2 C generation';}
+        _ar_:=dq[s,m,e,x['a'],d];z:=_fm_[_fn_] '(' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+    }
+    ?x['k']=='user-module-class-method'{
+        _pm_:=ev[m,x['u']];_own_:=fb[_pm_,x['c'],x['n'],1];?_own_==nn{er 'unknown aliased static class method during Stage-2 C generation';}
+        _ar_:=dq[s,m,e,x['a'],d];z:=dj[_own_['m'],_own_['c'],x['n'],1];z=z '(' +;z=z @s|_ar_['n']| +;z=z ', ' +;z=z _ar_['q'] +;z=z ')' +;rv z;
+    }
+    ?x['k']!='call'{z:=nn;rv z;}
+    _name_:=x['n'];_uf_:=dc[m,_name_];?_uf_==nn{z:=nn;rv z;}
+    a:=x['a'];n:=vl[a];q:='(SlugValue[])\{';i:=0;
+    wl?i<n{?i>0{q=q ', ' +;}y:=vg[a,i];v:=ct[s,m,e,y,d];q=q v +;i=i1+;}
+    q=q '\}' +;?n==0{q='NULL';}
+    z:=_uf_ '(' +;z=z @s|n| +;z=z ', ' +;z=z q +;z=z ')' +;rv z;
+}
+
+##! Emit one expression statement. User-function calls discard their result without requiring
+##! a value, so zero-return procedures remain legal statement expressions.
+~du s m e x d {
+    ?x['k']=='method'{_mr_:=dr[s,m,e,x,d];q:='sv_result_discard(' _mr_ +;q=q ');' +;cb[s,d,q];rv;}
+    _uk_:=x['k'];_uu_:=0;?_uk_=='user-module-call'{_uu_=1;}?_uk_=='user-module-class-method'{_uu_=1;}?_uu_{_mr_:=dv[s,m,e,x,d];q:='sv_result_discard(' _mr_ +;q=q ');' +;cb[s,d,q];rv;}
+    ?x['k']=='module-call'{
+        a:=x['a'];n:=vl[a];_arg_:='(SlugValue[])\{';i:=0;
+        wl?i<n{?i>0{_arg_=_arg_ ', ' +;}y:=vg[a,i];v:=ct[s,m,e,y,d];_arg_=_arg_ v +;i=i1+;}
+        _arg_=_arg_ '\}' +;?n==0{_arg_='NULL';}
+        z:=cz[x['u'],x['n']];?z==nn{er'unknown standard capability during Stage-2 C generation';}
+        q:='(void)(' z +;q=q '(' +;q=q @s|n| +;q=q ', ' +;q=q _arg_ +;q=q '));' +;cb[s,d,q];rv;
+    }
+    ?x['k'] == 'call' {
+        a := x['a'];
+        n := vl[a];
+        q := '(SlugValue[])\{';
+        i := 0;
+        wl ?i < n {
+            ?i > 0 { q = q ', ' +; }
+            y := vg[a, i];
+            v := ct[s, m, e, y, d];
+            q = q v +;
+            i = i 1 +;
+        }
+        q = q '\}' +;
+        ?n == 0 { q = 'NULL'; }
+        _name_ := x['n'];
+        _uf_ := dc[m, _name_];
+        if ?_uf_ != nn {
+            z := 'sv_result_discard(' _uf_ +;
+            z = z '(' +;
+            z = z @s|n| +;
+            z = z ', ' +;
+            z = z q +;
+            z = z '));' +;
+            cb[s, d, z];
+        }
+        ee {
+            b := s['b'];
+            _has_ := in[_name_, b];
+            ?_has_ == @b|0| { er 'unknown callable during Stage-2 C generation'; }
+            z := '(void)(' b[_name_] +;
+            z = z '(' +;
+            z = z @s|n| +;
+            z = z ', ' +;
+            z = z q +;
+            z = z '));' +;
+            cb[s, d, z];
+        }
+        rv;
+    }
+    v := ct[s, m, e, x, d];
+    q := '(void)(' v +;
+    q = q ');' +;
+    cb[s, d, q];
+    rv;
+}
+
+##! Unwind generated exception frames before a nonlocal control transfer.
+##! k is 'return', 'break', or 'continue'. Active contexts live in s['ts'].
+~ea s m e d f l h k {
+    t := s['ts'];
+    b := vn[];
+    c := nn;
+    z := nn;
+    q := '';
+    if ?k == 'return' {
+        n := vl[t];
+        i := 0;
+        wl ?i < n {
+            c := vo[t];
+            vp[b, c];
+            q := 'sv_exc_pop(&' c['x'] +;
+            q = q ');' +;
+            cb[s, d, q];
+            z := c['f'];
+            ?z != nn {
+                ce[e];
+                cu[s, m, e, z, d, f, l, c['h']];
+                cf[e];
+            }
+            i = i 1 +;
+        }
+    }
+    ee {
+        _ud_ := 0;
+        wl ?vl[t] > 0 {
+            _un_ := vl[t];
+            c := vg[t, _un_ 1 -];
+            ?c['l'] < l { bl; }
+            c = vo[t];
+            vp[b, c];
+            q = 'sv_exc_pop(&' c['x'] +;
+            q = q ');' +;
+            cb[s, d, q];
+            z := c['f'];
+            ?z != nn {
+                ce[e];
+                cu[s, m, e, z, d, f, l, c['h']];
+                cf[e];
+            }
+            _ud_ = _ud_ 1 +;
+        }
+    }
+    wl ?vl[b] > 0 { vp[t, vo[b]]; }
+    rv;
+}
+
+##! Emit one statement sequence. f=function depth flag; l=loop depth.
+~cu s m e a d f l h {
+    q := '';
+    c := '';
+    v := '';
+    z := nn;
+    _gl_ := 0;
+    if ?f == 0 { ?vl[e] == 1 { _gl_ = 1; } }
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        x := vg[a, i];
+        k := x['k'];
+        ?k == 'comment' { i = i 1 +; cl; }
+        ?k == 'import' { i = i 1 +; cl; }
+        ?k == 'function' { i = i 1 +; cl; }
+        ?k == 'class' { i = i 1 +; cl; }
+        ?k == 'destructor' { i = i 1 +; cl; }
+
+        ?k == 'define-multi' {
+            _ma_:=x['a'];_mn_:=vl[_ma_];_mv_:=x['v'];_mr_:=dv[s,m,e,_mv_,d];
+            _misres_:=0;?_mr_!=nn{_misres_=1;}
+            if ?_misres_ {
+                _mres_:=cc[s];q:='SlugResult ' _mres_ +;q=q ' = ' +;q=q _mr_ +;q=q ';' +;cb[s,d,q];
+                q='sv_result_require_arity(' _mres_ +;q=q ', ' +;q=q @s|_mn_| +;q=q ');' +;cb[s,d,q];
+                _mmark_:=cc[s];q:='size_t ' _mmark_ +;q=q ' = sv_result_root(' +;q=q _mres_ +;q=q ');' +;cb[s,d,q];
+                _mi_:=0;wl?_mi_<_mn_{
+                    _mname_:=vg[_ma_,_mi_];_mrhs_:=_mres_ '.values[' +;_mrhs_=_mrhs_ @s|_mi_| +;_mrhs_=_mrhs_ ']' +;
+                    if ?_gl_ {_gm_:=m['cg'];c=_gm_[_mname_];q=c ' = ' +;q=q _mrhs_ +;q=q ';' +;cb[s,d,q];}
+                    ee {_en_:=vl[e];_ei_:=_en_1-;_cur_:=vg[e,_ei_];_had_:=in[_mname_,_cur_];c=ch[s,e,_mname_];if?_had_{q=c ' = ' +;}ee{q='SlugValue ' c +;q=q ' = ' +;}q=q _mrhs_ +;q=q ';' +;cb[s,d,q];?!_had_{q='sv_local_root_add(&_slug_roots, &' c +;q=q ');' +;cb[s,d,q];}}
+                    _mi_=_mi_1+;
+                }
+                q='sv_temp_root_pop(' _mmark_ +;q=q ');' +;cb[s,d,q];q='sv_result_dispose(' _mres_ +;q=q ');' +;cb[s,d,q];
+            }
+            ee {
+                v=ct[s,m,e,_mv_,d];_mi_:=0;wl?_mi_<_mn_{
+                    _mname_:=vg[_ma_,_mi_];
+                    if ?_gl_ {_gm_:=m['cg'];c=_gm_[_mname_];q=c ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];}
+                    ee {_en_:=vl[e];_ei_:=_en_1-;_cur_:=vg[e,_ei_];_had_:=in[_mname_,_cur_];c=ch[s,e,_mname_];if?_had_{q=c ' = ' +;}ee{q='SlugValue ' c +;q=q ' = ' +;}q=q v +;q=q ';' +;cb[s,d,q];?!_had_{q='sv_local_root_add(&_slug_roots, &' c +;q=q ');' +;cb[s,d,q];}}
+                    _mi_=_mi_1+;
+                }
+            }
+            i=i1+;cl;
+        }
+
+        ?k == 'assign-multi' {
+            _ma_:=x['a'];_mn_:=vl[_ma_];_mv_:=x['v'];_mr_:=dv[s,m,e,_mv_,d];
+            _misres_:=0;?_mr_!=nn{_misres_=1;}
+            if ?_misres_ {
+                _mres_:=cc[s];q:='SlugResult ' _mres_ +;q=q ' = ' +;q=q _mr_ +;q=q ';' +;cb[s,d,q];
+                q='sv_result_require_arity(' _mres_ +;q=q ', ' +;q=q @s|_mn_| +;q=q ');' +;cb[s,d,q];
+                _mmark_:=cc[s];q:='size_t ' _mmark_ +;q=q ' = sv_result_root(' +;q=q _mres_ +;q=q ');' +;cb[s,d,q];
+                _mi_:=0;wl?_mi_<_mn_{
+                    _mname_:=vg[_ma_,_mi_];_mrhs_:=_mres_ '.values[' +;_mrhs_=_mrhs_ @s|_mi_| +;_mrhs_=_mrhs_ ']' +;
+                    if ?_gl_ {c=db[m,_mname_];?c==nn{er 'missing Stage-2 module global assignment target';}q=c ' = ' +;q=q _mrhs_ +;q=q ';' +;cb[s,d,q];}
+                    ee {c=cg[e,_mname_];?c==nn{c=db[m,_mname_];}?c==nn{c=ch[s,e,_mname_];q='SlugValue ' c +;q=q ' = ' +;q=q _mrhs_ +;q=q ';' +;cb[s,d,q];q='sv_local_root_add(&_slug_roots, &' c +;q=q ');' +;cb[s,d,q];}ee{q=c ' = ' +;q=q _mrhs_ +;q=q ';' +;cb[s,d,q];}}
+                    _mi_=_mi_1+;
+                }
+                q='sv_temp_root_pop(' _mmark_ +;q=q ');' +;cb[s,d,q];q='sv_result_dispose(' _mres_ +;q=q ');' +;cb[s,d,q];
+            }
+            ee {
+                v=ct[s,m,e,_mv_,d];_mi_:=0;wl?_mi_<_mn_{
+                    _mname_:=vg[_ma_,_mi_];
+                    if ?_gl_ {c=db[m,_mname_];?c==nn{er 'missing Stage-2 module global assignment target';}q=c ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];}
+                    ee {c=cg[e,_mname_];?c==nn{c=db[m,_mname_];}?c==nn{c=ch[s,e,_mname_];q='SlugValue ' c +;q=q ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];q='sv_local_root_add(&_slug_roots, &' c +;q=q ');' +;cb[s,d,q];}ee{q=c ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];}}
+                    _mi_=_mi_1+;
+                }
+            }
+            i=i1+;cl;
+        }
+
+        ?k == 'module-var-assign' {
+            _pm_:=ev[m,x['u']];_gm_:=_pm_['cg'];_gn_:=x['n'];_gh_:=in[_gn_,_gm_];?!_gh_{er 'missing aliased module global assignment target';}
+            v:=ct[s,m,e,x['v'],d];c:=_gm_[_gn_];q:=c ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];
+            _dt_:=s['dt'];_dh_:=in[v,_dt_];?_dh_{q=v ' = sv_null();' +;cb[s,d,q];}cb[s,d,'sv_gc_safepoint();'];i=i1+;cl;
+        }
+
+        ?k == 'define' {
+            v = ct[s, m, e, x['v'], d];
+            if ?_gl_ {
+                _gm_ := m['cg'];
+                c = _gm_[x['n']];
+                q = c ' = ' +;
+                q = q v +;
+                q = q ';' +;
+                cb[s, d, q];
+            }
+            ee {
+                _en_ := vl[e];
+                _ei_ := _en_ 1 -;
+                _cur_ := vg[e, _ei_];
+                _had_ := in[x['n'], _cur_];
+                c = ch[s, e, x['n']];
+                if ?_had_ { q = c ' = ' +; }
+                ee { q = 'SlugValue ' c +; q = q ' = ' +; }
+                q = q v +;
+                q = q ';' +;
+                cb[s, d, q];
+                ?_had_ == @b|0| {
+                    q = 'sv_local_root_add(&_slug_roots, &' c +;
+                    q = q ');' +;
+                    cb[s, d, q];
+                }
+            }
+            _dt_ := s['dt']; _dh_ := in[v, _dt_];
+            ?_dh_ { q = v ' = sv_null();' +; cb[s,d,q]; cb[s,d,'sv_gc_safepoint();']; }
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'assign' {
+            v = ct[s, m, e, x['v'], d];
+            if ?_gl_ {
+                c = db[m, x['n']];
+                ?c == nn { er 'missing Stage-2 module global assignment target'; }
+                q = c ' = ' +;
+                q = q v +;
+                q = q ';' +;
+                cb[s, d, q];
+            }
+            ee {
+                c = cg[e, x['n']];
+                ?c == nn { c = db[m, x['n']]; }
+                _newl_ := 0;
+                if ?c == nn {
+                    c = ch[s, e, x['n']];
+                    q = 'SlugValue ' c +;
+                    q = q ' = ' +;
+                    _newl_ = 1;
+                }
+                ee { q = c ' = ' +; }
+                q = q v +;
+                q = q ';' +;
+                cb[s, d, q];
+                ?_newl_ {
+                    q = 'sv_local_root_add(&_slug_roots, &' c +;
+                    q = q ');' +;
+                    cb[s, d, q];
+                }
+            }
+            _dt_ := s['dt']; _dh_ := in[v, _dt_];
+            ?_dh_ { q = v ' = sv_null();' +; cb[s,d,q]; }
+            cb[s,d,'sv_gc_safepoint();'];
+            i = i 1 +;
+            cl;
+        }
+
+        y := 0;
+        ?k == 'set-index' { y = 1; }
+        ?k == 'set-index-define' { y = 1; }
+        ?y {
+            t := x['t'];
+            ?t['k'] != 'index' { er 'Stage-2 indexed assignment target malformed'; }
+            _a0_ := ct[s, m, e, t['a'], d];
+            _b0_ := ct[s, m, e, t['b'], d];
+            v = ct[s, m, e, x['v'], d];
+            q = 'sv_set_index(' _a0_ +;
+            q = q ', ' +;
+            q = q _b0_ +;
+            q = q ', ' +;
+            q = q v +;
+            q = q ', ' +;
+            if ?k == 'set-index-define' { q = q 'true);' +; }
+            ee { q = q 'false);' +; }
+            cb[s, d, q];
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'expr' {
+            du[s, m, e, x['v'], d];
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'set-member' {
+            _min_:=0;_mmd_:=s['md'];?_mmd_=='ctor'{_min_=1;}?_mmd_=='static-init'{_min_=1;}
+            _mt_:=x['t'];_mk_:=0;?_mmd_=='ctor'{?_mt_['z']{?x['d']{_mk_=1;}}}
+            ?_mk_==0{v:=ds[s,m,e,_mt_,x['v'],d,x['d'],x['i'],_min_];}
+            i=i1+;cl;
+        }
+        ?k == 'super-init' {
+            _cu_:=s['cn'];_se_:=s['se'];?_cu_==nn{er 'super init outside class';}?_se_==nn{er 'super init outside instance constructor';}
+            _cx_:=dm[m,_cu_];_pa_:=_cx_['h'];?_pa_==nn{er 'super init without parent';}
+            _pp_:=fa[m,_pa_];?_pp_==nn{er 'unknown super class provider';}_ar_:=dq[s,m,e,x['a'],d];q:=dh[_pp_,_pa_];q=q '(' +;q=q _se_ +;q=q ', ' +;q=q @s|_ar_['n']| +;q=q ', ' +;q=q _ar_['q'] +;q=q ');' +;cb[s,d,q];i=i1+;cl;
+        }
+
+        ?k == 'raise' {
+            z = x['v'];
+            if ?z == nn {
+                ?h == nn { er 'Stage-2 C bare raise outside catch'; }
+                q = 'sv_raise(' h +;
+                q = q ');' +;
+            }
+            ee {
+                v = ct[s, m, e, z, d];
+                q = 'sv_raise(' v +;
+                q = q ');' +;
+            }
+            cb[s, d, q];
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'return' {
+            ?f == 0 { er 'Stage-2 C return outside function'; }
+            _a0_ := x['v'];
+            _c0_ := vl[_a0_];
+            if ?_c0_ == 0 { ea[s,m,e,d,f,l,h,'return']; cb[s, d, 'sv_local_root_leave(&_slug_roots);']; cb[s, d, 'return sv_result0();']; }
+            ee {
+                _rnames_:=vn[];_ri_:=0;
+                wl?_ri_<_c0_{
+                    _r0_:=vg[_a0_,_ri_];v=ct[s,m,e,_r0_,d];_rt_:=cc[s];
+                    q='SlugValue ' _rt_ +;q=q ' = ' +;q=q v +;q=q ';' +;cb[s,d,q];
+                    q='sv_local_root_add(&_slug_roots, &' _rt_ +;q=q ');' +;cb[s,d,q];vp[_rnames_,_rt_];_ri_=_ri_1+;
+                }
+                _rarr_:='(SlugValue[])\{';_ri_=0;wl?_ri_<_c0_{?_ri_>0{_rarr_=_rarr_ ', ' +;}_rarr_=_rarr_ vg[_rnames_,_ri_] +;_ri_=_ri_1+;}_rarr_=_rarr_ '\}' +;
+                ea[s,m,e,d,f,l,h,'return'];cb[s,d,'sv_local_root_leave(&_slug_roots);'];q='return sv_result_from(' _rarr_ +;q=q ', ' +;q=q @s|_c0_| +;q=q ');' +;cb[s,d,q];
+            }
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'if' {
+            _c0_ := ct[s, m, e, x['c'], d];
+            q = 'if (sv_truthy(' _c0_ +;
+            q = q ')) \{' +;
+            cb[s, d, q];
+            ce[e];
+            cu[s, m, e, x['b'], d 1 +, f, l, h];
+            cf[e];
+            z := x['e'];
+            if ?z != nn {
+                cb[s, d, '\} else \{'];
+                ce[e];
+                cu[s, m, e, z, d 1 +, f, l, h];
+                cf[e];
+            }
+            cb[s, d, '\}'];
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'while' {
+            cb[s, d, 'while (1) \{'];
+            _c0_ := ct[s, m, e, x['c'], d 1 +];
+            q = 'if (!sv_truthy(' _c0_ +;
+            q = q ')) break;' +;
+            cb[s, d 1 +, q];
+            ce[e];
+            cu[s, m, e, x['b'], d 1 +, f, l 1 +, h];
+            cf[e];
+            cb[s, d, '\}'];
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'try' {
+            _tx_ := cc[s]; _tc_ := cc[s]; _te_ := cc[s];
+            cb[s,d,'\{'];
+            q='SlugExcFrame ' _tx_ +;q=q ';'+;cb[s,d 1 +,q];
+            q='sv_exc_push(&' _tx_ +;q=q ');'+;cb[s,d 1 +,q];
+            q='int ' _tc_ +;q=q ' = setjmp('+;q=q _tx_ +;q=q '.env);'+;cb[s,d 1 +,q];
+            q='if (' _tc_ +;q=q ' == 0) \{'+;cb[s,d 1 +,q];
+            _tf_:=x['f'];_ts_:=s['ts'];vp[_ts_,['x':_tx_,'f':_tf_,'l':l,'h':h]];
+            ce[e];cu[s,m,e,x['b'],d 2 +,f,l,h];cf[e];vo[_ts_];
+            q='sv_exc_pop(&' _tx_ +;q=q ');'+;cb[s,d 2 +,q];
+            ?_tf_!=nn{ce[e];cu[s,m,e,_tf_,d 2 +,f,l,h];cf[e];}
+            cb[s,d 1 +,'\} else \{'];
+            q='SlugValue ' _te_ +;q=q ' = '+;q=q _tx_ +;q=q '.error;'+;cb[s,d 2 +,q];
+            q='sv_local_root_add(&_slug_roots, &' _te_ +;q=q ');'+;cb[s,d 2 +,q];
+            q='sv_exc_pop(&' _tx_ +;q=q ');'+;cb[s,d 2 +,q];
+            _tb_:=x['c'];
+            if ?_tb_!=nn {
+                _cx_:=cc[s];_cc_:=cc[s];_ce_:=cc[s];
+                q='SlugExcFrame ' _cx_ +;q=q ';'+;cb[s,d 2 +,q];
+                q='sv_exc_push(&' _cx_ +;q=q ');'+;cb[s,d 2 +,q];
+                q='int ' _cc_ +;q=q ' = setjmp('+;q=q _cx_ +;q=q '.env);'+;cb[s,d 2 +,q];
+                q='if (' _cc_ +;q=q ' == 0) \{'+;cb[s,d 2 +,q];
+                _ts_=s['ts'];vp[_ts_,['x':_cx_,'f':_tf_,'l':l,'h':h]];
+                ce[e];
+                _cn_:=x['n'];?_cn_!=nn{
+                    c=ch[s,e,_cn_];q='SlugValue ' c +;q=q ' = '+;q=q _te_ +;q=q ';'+;cb[s,d 3 +,q];
+                    q='sv_local_root_add(&_slug_roots, &' c +;q=q ');'+;cb[s,d 3 +,q];
+                }
+                cu[s,m,e,_tb_,d 3 +,f,l,_te_];cf[e];vo[_ts_];
+                q='sv_exc_pop(&' _cx_ +;q=q ');'+;cb[s,d 3 +,q];
+                ?_tf_!=nn{ce[e];cu[s,m,e,_tf_,d 3 +,f,l,h];cf[e];}
+                cb[s,d 2 +,'\} else \{'];
+                q='SlugValue ' _ce_ +;q=q ' = '+;q=q _cx_ +;q=q '.error;'+;cb[s,d 3 +,q];
+                q='sv_local_root_add(&_slug_roots, &' _ce_ +;q=q ');'+;cb[s,d 3 +,q];
+                q='sv_exc_pop(&' _cx_ +;q=q ');'+;cb[s,d 3 +,q];
+                ?_tf_!=nn{
+                    _fx_:=cc[s];_fc_:=cc[s];_fe_:=cc[s];_fs_:=cc[s];
+                    q='SlugExcFrame ' _fx_ +;q=q ';'+;cb[s,d 3 +,q];
+                    q='sv_exc_push(&' _fx_ +;q=q ');'+;cb[s,d 3 +,q];
+                    q='int ' _fc_ +;q=q ' = setjmp('+;q=q _fx_ +;q=q '.env);'+;cb[s,d 3 +,q];
+                    q='if (' _fc_ +;q=q ' == 0) \{'+;cb[s,d 3 +,q];
+                    _ts_=s['ts'];vp[_ts_,['x':_fx_,'f':nn,'l':l,'h':h]];ce[e];cu[s,m,e,_tf_,d 4 +,f,l,h];cf[e];vo[_ts_];
+                    q='sv_exc_pop(&' _fx_ +;q=q ');'+;cb[s,d 4 +,q];
+                    cb[s,d 3 +,'\} else \{'];
+                    q='SlugValue ' _fe_ +;q=q ' = '+;q=q _fx_ +;q=q '.error;'+;cb[s,d 4 +,q];
+                    q='sv_local_root_add(&_slug_roots, &' _fe_ +;q=q ');'+;cb[s,d 4 +,q];
+                    q='sv_exc_pop(&' _fx_ +;q=q ');'+;cb[s,d 4 +,q];
+                    q='SlugValue ' _fs_ +;q=q ' = sv_error_supersede('+;q=q _fe_ +;q=q ', '+;q=q _ce_ +;q=q ');'+;cb[s,d 4 +,q];
+                    q='sv_local_root_add(&_slug_roots, &' _fs_ +;q=q ');'+;cb[s,d 4 +,q];
+                    q='sv_raise(' _fs_ +;q=q ');'+;cb[s,d 4 +,q];
+                    cb[s,d 3 +,'\}'];
+                }
+                q='sv_raise(' _ce_ +;q=q ');'+;cb[s,d 3 +,q];
+                cb[s,d 2 +,'\}'];
+            }
+            ee {
+                ?_tf_!=nn{
+                    _fx_:=cc[s];_fc_:=cc[s];_fe_:=cc[s];_fs_:=cc[s];
+                    q='SlugExcFrame ' _fx_ +;q=q ';'+;cb[s,d 2 +,q];
+                    q='sv_exc_push(&' _fx_ +;q=q ');'+;cb[s,d 2 +,q];
+                    q='int ' _fc_ +;q=q ' = setjmp('+;q=q _fx_ +;q=q '.env);'+;cb[s,d 2 +,q];
+                    q='if (' _fc_ +;q=q ' == 0) \{'+;cb[s,d 2 +,q];
+                    _ts_=s['ts'];vp[_ts_,['x':_fx_,'f':nn,'l':l,'h':h]];ce[e];cu[s,m,e,_tf_,d 3 +,f,l,h];cf[e];vo[_ts_];
+                    q='sv_exc_pop(&' _fx_ +;q=q ');'+;cb[s,d 3 +,q];
+                    cb[s,d 2 +,'\} else \{'];
+                    q='SlugValue ' _fe_ +;q=q ' = '+;q=q _fx_ +;q=q '.error;'+;cb[s,d 3 +,q];
+                    q='sv_local_root_add(&_slug_roots, &' _fe_ +;q=q ');'+;cb[s,d 3 +,q];
+                    q='sv_exc_pop(&' _fx_ +;q=q ');'+;cb[s,d 3 +,q];
+                    q='SlugValue ' _fs_ +;q=q ' = sv_error_supersede('+;q=q _fe_ +;q=q ', '+;q=q _te_ +;q=q ');'+;cb[s,d 3 +,q];
+                    q='sv_local_root_add(&_slug_roots, &' _fs_ +;q=q ');'+;cb[s,d 3 +,q];
+                    q='sv_raise(' _fs_ +;q=q ');'+;cb[s,d 3 +,q];
+                    cb[s,d 2 +,'\}'];
+                }
+                q='sv_raise(' _te_ +;q=q ');'+;cb[s,d 2 +,q];
+            }
+            cb[s,d 1 +,'\}'];
+            cb[s,d,'\}'];
+            i=i1+;cl;
+        }
+
+        ?k == 'range' {
+            _beg_ := ct[s, m, e, x['a'], d];
+            _end_ := ct[s, m, e, x['z'], d];
+            _ra_ := cc[s]; _rb_ := cc[s]; _ri_ := cc[s]; _ru_ := cc[s];
+            cb[s, d, '\{'];
+            q = 'SlugValue ' _ra_ +; q = q ' = ' +; q = q _beg_ +; q = q ';' +; cb[s,d 1 +,q];
+            q = 'sv_local_root_add(&_slug_roots, &' _ra_ +; q=q ');'+; cb[s,d 1 +,q];
+            q = 'SlugValue ' _rb_ +; q = q ' = ' +; q = q _end_ +; q = q ';' +; cb[s,d 1 +,q];
+            q = 'sv_local_root_add(&_slug_roots, &' _rb_ +; q=q ');'+; cb[s,d 1 +,q];
+            q = 'sv_require_range_bound(' _ra_ +; q=q '); sv_require_range_bound(' +; q=q _rb_ +; q=q ');'+; cb[s,d 1 +,q];
+            q = 'bool ' _ru_ +; q=q ' = ('+; q=q _ra_ +; q=q '.tag==SV_UINT || '+; q=q _rb_ +; q=q '.tag==SV_UINT);'+; cb[s,d 1 +,q];
+            q = 'SlugValue ' _ri_ +; q=q ' = '+; q=q _ra_ +; q=q ';'+; cb[s,d 1 +,q];
+            q = 'sv_local_root_add(&_slug_roots, &' _ri_ +; q=q ');'+; cb[s,d 1 +,q];
+            q = 'for (; sv_numeric_compare(' _ri_ +; q=q ', '+; q=q _rb_ +; q=q ') < 0; '+; q=q _ri_ +; q=q ' = sv_range_next('+; q=q _ri_ +; q=q ', '+; q=q _ru_ +; q=q ')) \{'+;
+            cb[s,d 1 +,q];
+            ce[e];
+            c = ch[s,e,x['n']];
+            q = 'SlugValue ' c +; q=q ' = '+; q=q _ri_ +; q=q ';'+; cb[s,d 2 +,q];
+            q = 'sv_local_root_add(&_slug_roots, &' c +; q=q ');'+; cb[s,d 2 +,q];
+            cu[s,m,e,x['b'],d 2 +,f,l 1 +,h];
+            cf[e];
+            cb[s,d 1 +,'\}'];
+            cb[s,d,'\}'];
+            i=i1+;cl;
+        }
+
+        ?k == 'foreach' {
+            _seq_ := ct[s, m, e, x['s'], d];
+            u := cc[s];
+            _v0_ := cc[s];
+            w := cc[s];
+            cb[s, d, '\{'];
+            q = 'SlugValue ' u +;
+            q = q ' = ' +;
+            q = q _seq_ +;
+            q = q ';' +;
+            cb[s, d 1 +, q];
+            q = 'sv_local_root_add(&_slug_roots, &' u +;
+            q = q ');' +;
+            cb[s, d 1 +, q];
+            q = 'int64_t ' _v0_ +;
+            q = q ' = sv_len_i(' +;
+            q = q u +;
+            q = q ');' +;
+            cb[s, d 1 +, q];
+            q = 'for (int64_t ' w +;
+            q = q ' = 0; ' +;
+            q = q w +;
+            q = q ' < ' +;
+            q = q _v0_ +;
+            q = q '; ++' +;
+            q = q w +;
+            q = q ') \{' +;
+            cb[s, d 1 +, q];
+            ce[e];
+            c = ch[s, e, x['n']];
+            q = 'SlugValue ' c +;
+            q = q ' = sv_iter_at(' +;
+            q = q u +;
+            q = q ', ' +;
+            q = q w +;
+            q = q ');' +;
+            cb[s, d 2 +, q];
+            q = 'sv_local_root_add(&_slug_roots, &' c +;
+            q = q ');' +;
+            cb[s, d 2 +, q];
+            cu[s, m, e, x['b'], d 2 +, f, l 1 +, h];
+            cf[e];
+            cb[s, d 1 +, '\}'];
+            cb[s, d, '\}'];
+            i = i 1 +;
+            cl;
+        }
+
+        ?k == 'break' {
+            ?l <= 0 { er 'Stage-2 C break outside loop'; }
+            ea[s,m,e,d,f,l,h,'break'];
+            cb[s, d, 'break;'];
+            i = i 1 +;
+            cl;
+        }
+        ?k == 'continue' {
+            ?l <= 0 { er 'Stage-2 C continue outside loop'; }
+            ea[s,m,e,d,f,l,h,'continue'];
+            cb[s, d, 'continue;'];
+            i = i 1 +;
+            cl;
+        }
+        er 'unsupported Stage-2 statement in C backend';
+    }
+    rv;
+}
+
+##! Emit one module-owned function body.
+~cx s m x {
+    n := x['n'];
+    f := m['cf'];
+    c := f[n];
+    p := x['p'];
+    _pn_ := vl[p];
+    q := 'static SlugResult ' c +;
+    q = q '(size_t argc, SlugValue *argv) \{' +;
+    cb[s, 0, q];
+    q = 'if (argc != ' @s|_pn_| +;
+    q = q ') sv_fail("Stage-2 function arity");' +;
+    cb[s, 1, q];
+    cb[s, 1, 'SvLocalRootFrame _slug_roots;'];
+    cb[s, 1, 'sv_local_root_enter(&_slug_roots);'];
+    e := cd[];
+    i := 0;
+    wl ?i < _pn_ {
+        _n0_ := vg[p, i];
+        v := ch[s, e, _n0_];
+        q = 'SlugValue ' v +;
+        q = q ' = argv[' +;
+        q = q @s|i| +;
+        q = q '];' +;
+        cb[s, 1, q];
+        q = 'sv_local_root_add(&_slug_roots, &' v +;
+        q = q ');' +;
+        cb[s, 1, q];
+        i = i 1 +;
+    }
+    cu[s, m, e, x['b'], 1, 1, 0, nn];
+    cb[s, 1, 'sv_local_root_leave(&_slug_roots);'];
+    cb[s, 1, 'return sv_result0();'];
+    cb[s, 0, '\}'];
+    da[s, '\n'];
+    rv;
+}
+
+##! Emit one class method body.
+~dt s m c x {
+    _oc_:=s['cn'];_os_:=s['se'];_om_:=s['md'];
+    s['cn']=c;s['md']='method';
+    _st_:=x['z'];if ?_st_ {s['se']=nn;}ee{s['se']='self';}
+    n:=x['n'];p:=x['p'];_pn_:=vl[p];z:=dj[m,c,n,_st_];q:='static SlugResult ' z +;
+    if ?_st_ {q=q '(size_t argc, SlugValue *argv) \{' +;}ee{q=q '(SlugObject *self, size_t argc, SlugValue *argv) \{' +;}cb[s,0,q];
+    q:='if (argc != ' @s|_pn_| +;q=q ') sv_fail("Stage-2 method arity");' +;cb[s,1,q];
+    cb[s,1,'SvLocalRootFrame _slug_roots;'];cb[s,1,'sv_local_root_enter(&_slug_roots);'];
+    ?_st_==@b|0|{cb[s,1,'SlugValue _slug_self_value = sv_object_value(self);'];cb[s,1,'sv_local_root_add(&_slug_roots, &_slug_self_value);'];}
+    e:=cd[];i:=0;wl?i<_pn_{_pm_:=vg[p,i];v:=ch[s,e,_pm_];q:='SlugValue ' v +;q=q ' = argv[' +;q=q @s|i| +;q=q '];' +;cb[s,1,q];q='sv_local_root_add(&_slug_roots, &' v +;q=q ');' +;cb[s,1,q];i=i1+;}
+    cu[s,m,e,x['b'],1,1,0,nn];cb[s,1,'sv_local_root_leave(&_slug_roots);'];cb[s,1,'return sv_result0();'];cb[s,0,'\}'];da[s,'\n'];
+    s['cn']=_oc_;s['se']=_os_;s['md']=_om_;rv;
+}
+
+##! Emit one class initializer/constructor body.
+~dw s m c x {
+    _oc_:=s['cn'];_os_:=s['se'];_om_:=s['md'];s['cn']=c;s['se']='self';s['md']='ctor';
+    z:=dh[m,c];q:='static void ' z +;q=q '(SlugObject *self, size_t argc, SlugValue *argv) \{' +;cb[s,0,q];
+    cb[s,1,'SvLocalRootFrame _slug_roots;'];cb[s,1,'sv_local_root_enter(&_slug_roots);'];cb[s,1,'SlugValue _slug_self_value = sv_object_value(self);'];cb[s,1,'sv_local_root_add(&_slug_roots, &_slug_self_value);'];
+    e:=cd[];p:=x['p'];_pn_:=vl[p];q:='if (argc > ' @s|_pn_| +;q=q ') sv_fail("too many constructor arguments");' +;cb[s,1,q];i:=0;
+    wl?i<_pn_{_pa_:=vg[p,i];_pm_:=_pa_['n'];v:=ch[s,e,_pm_];q:='SlugValue ' v +;q=q ';' +;cb[s,1,q];q='sv_local_root_add(&_slug_roots, &' v +;q=q ');' +;cb[s,1,q];q:='if (argc > ' @s|i| +;q=q ' && argv[' +;q=q @s|i| +;q=q '].tag != SV_DEFAULT) ' +;q=q v +;q=q ' = argv[' +;q=q @s|i| +;q=q '];' +;cb[s,1,q];_pd_:=_pa_['d'];if ?_pd_!=nn{_dv_:=ct[s,m,e,_pd_,1];q:='else ' v +;q=q ' = ' +;q=q _dv_ +;q=q ';' +;cb[s,1,q];}ee{q:='else sv_fail("missing required constructor argument");';cb[s,1,q];}i=i1+;}
+    b:=x['b'];_bn_:=vl[b];_bi_:=0;_hs_:=0;wl?_bi_<_bn_{y:=vg[b,_bi_];?y['k']=='super-init'{_hs_=1;}_bi_=_bi_1+;}
+    h:=x['h'];?h!=nn{?_hs_==0{_pp_:=fa[m,h];?_pp_==nn{er 'unknown parent class provider';}q:=dh[_pp_,h];q=q '(self, 0, NULL);' +;cb[s,1,q];}}
+    cu[s,m,e,b,1,1,0,nn];cb[s,1,'sv_local_root_leave(&_slug_roots);'];cb[s,1,'return;'];cb[s,0,'\}'];da[s,'\n'];
+    z=di[m,c];q='static SlugValue ' z +;q=q '(size_t argc, SlugValue *argv) \{' +;cb[s,0,q];cb[s,1,'SvLocalRootFrame _slug_roots;'];cb[s,1,'sv_local_root_enter(&_slug_roots);'];q='SlugObject *self = sv_object_new(' @s|x['id']| +;q=q ', ' +;q=q ck[c] +;q=q ');' +;cb[s,1,q];cb[s,1,'SlugValue _slug_self_value = sv_object_value(self);'];cb[s,1,'sv_local_root_add(&_slug_roots, &_slug_self_value);'];q=dh[m,c];q=q '(self, argc, argv);' +;cb[s,1,q];cb[s,1,'sv_local_root_leave(&_slug_roots);'];cb[s,1,'return _slug_self_value;'];cb[s,0,'\}'];da[s,'\n'];
+    s['cn']=_oc_;s['se']=_os_;s['md']=_om_;rv;
+}
+
+##! Emit one destructor chain node.
+~dx s m c x {
+    _oc_:=s['cn'];_os_:=s['se'];_om_:=s['md'];s['cn']=c;s['se']='self';s['md']='dtor';
+    z:=dk[m,c];q:='static void ' z +;q=q '(SlugObject *self) \{' +;cb[s,0,q];cb[s,1,'if (!self) return;'];cb[s,1,'SvLocalRootFrame _slug_roots;'];cb[s,1,'sv_local_root_enter(&_slug_roots);'];cb[s,1,'SlugValue _slug_self_value = sv_object_value(self);'];cb[s,1,'sv_local_root_add(&_slug_roots, &_slug_self_value);'];
+    e:=cd[];b:=x['b'];_bn_:=vl[b];_bi_:=0;_db_:=nn;wl?_bi_<_bn_{y:=vg[b,_bi_];?y['k']=='destructor'{_db_=y['b'];}_bi_=_bi_1+;}?_db_!=nn{cu[s,m,e,_db_,1,1,0,nn];}
+    h:=x['h'];?h!=nn{_pp_:=fa[m,h];?_pp_==nn{er 'unknown parent class provider';}q=dk[_pp_,h];q=q '(self);' +;cb[s,1,q];}cb[s,1,'sv_local_root_leave(&_slug_roots);'];cb[s,0,'\}'];da[s,'\n'];s['cn']=_oc_;s['se']=_os_;s['md']=_om_;rv;
+}
+
+##! Emit one instance-method dispatch switch across the linked graph.
+~dy s g n {
+    z:=dl[n];q:='static SlugResult ' z +;q=q '(SlugObject *self, size_t argc, SlugValue *argv) \{' +;cb[s,0,q];cb[s,1,'if (!self) sv_fail("null object receiver");'];cb[s,1,'switch (self->class_id) \{'];
+    a:=g['mods'];_an_:=vl[a];i:=0;wl?i<_an_{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{c:=x['n'];o:=fb[m,c,n,0];?o!=nn{q:='case ' @s|x['id']| +;q=q ': return ' +;q=q dj[o['m'],o['c'],n,0] +;q=q '(self, argc, argv);' +;cb[s,2,q];}}j=j1+;}i=i1+;}
+    cb[s,2,'default: sv_fail("object does not implement requested method");'];cb[s,1,'\}'];cb[s,1,'return sv_result0();'];cb[s,0,'\}'];da[s,'\n'];rv;
+}
+
+##! Emit global object destructor dispatch.
+~dz s g {
+    cb[s,0,'static void slug_destroy_object(SlugObject *self) \{'];cb[s,1,'if (!self) return;'];cb[s,1,'switch (self->class_id) \{'];a:=g['mods'];_an_:=vl[a];i:=0;
+    wl?i<_an_{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{q:='case ' @s|x['id']| +;q=q ': ' +;q=q dk[m,x['n']] +;q=q '(self); break;' +;cb[s,2,q];}j=j1+;}i=i1+;}
+    cb[s,2,'default: break;'];cb[s,1,'\}'];cb[s,0,'\}'];da[s,'\n'];rv;
+}
+
+##! Emit a complete Stage-2 module graph as one deterministic C translation unit.
+~cy g r o {
+    h := FS.fo[o, 'w'];
+    b := cp[];
+    s := ['h': h, 'u': 0, 'b': b, 'cid': 1, 'cn': nn, 'se': nn, 'md': 'top', 'dt': [:], 'ts': vn[]];
+    de[s, g];
+    q := FS.ft[r];
+    da[s, q];
+    da[s, '\n'];
+
+    a := g['mods'];
+    n := vl[a];
+    _can_:=0;_dm_:=vn[];_ds_:=[:];i:=0;
+    wl?i<n{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{_can_=_can_1+;_cb_:=x['b'];_cbn_:=vl[_cb_];_cbi_:=0;wl?_cbi_<_cbn_{y:=vg[_cb_,_cbi_];?y['k']=='function'{_dn_:=y['n'];_dh_:=in[_dn_,_ds_];?_dh_==@b|0|{_ds_[_dn_]:=1;vp[_dm_,_dn_];}}_cbi_=_cbi_1+;}}j=j1+;}i=i1+;}
+
+    ##! Module-owned globals.
+    da[s, '\n/* Stage-2 module globals */\n'];
+    i := 0;
+    wl ?i < n {
+        m := vg[a, i];
+        p := m['ast'];
+        _pn_ := vl[p];
+        j := 0;
+        _seen_ := [:];
+        wl ?j < _pn_ {
+            x := vg[p, j];
+            k := x['k'];
+            y := 0;
+            ?k == 'define' { y = 1; }
+            ?y {
+                _n0_ := x['n'];
+                _has_ := in[_n0_, _seen_];
+                ?_has_ == @b|0| {
+                    _seen_[_n0_] := 1;
+                    _gm_ := m['cg'];
+                    z := 'static SlugValue ' _gm_[_n0_] +;
+                    z = z ';' +;
+                    cb[s, 0, z];
+                }
+            }
+            _mu_:=0;?k=='define-multi'{_mu_=1;}
+            ?_mu_{
+                _ma_:=x['a'];_mn_:=vl[_ma_];_mi_:=0;
+                wl?_mi_<_mn_{
+                    _n0_:=vg[_ma_,_mi_];_has_:=in[_n0_,_seen_];
+                    ?_has_==@b|0|{_seen_[_n0_]:=1;_gm_:=m['cg'];z:='static SlugValue ' _gm_[_n0_] +;z=z ';' +;cb[s,0,z];}
+                    _mi_=_mi_1+;
+                }
+            }
+            j = j 1 +;
+        }
+        i = i 1 +;
+    }
+
+    ##! Class-owned static fields.
+    da[s, '\n/* Stage-2 class static fields */\n'];
+    i=0;wl?i<n{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{_cn_:=x['n'];_cb_:=x['b'];_cbn_:=vl[_cb_];_cbi_:=0;wl?_cbi_<_cbn_{y:=vg[_cb_,_cbi_];?y['k']=='set-member'{t:=y['t'];?t['z']{?y['d']{q:='static SlugValue ' dg[m,_cn_,t['n']] +;q=q ';' +;cb[s,0,q];}}}_cbi_=_cbi_1+;}}j=j1+;}i=i1+;}
+
+    ##! Class/function/dispatch prototypes.
+    da[s, '\n/* Stage-2 class prototypes */\n'];
+    i=0;wl?i<n{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{_cn_:=x['n'];q:='static void ' dh[m,_cn_] +;q=q '(SlugObject *self, size_t argc, SlugValue *argv);' +;cb[s,0,q];q='static SlugValue ' di[m,_cn_] +;q=q '(size_t argc, SlugValue *argv);' +;cb[s,0,q];q='static void ' dk[m,_cn_] +;q=q '(SlugObject *self);' +;cb[s,0,q];_cb_:=x['b'];_cbn_:=vl[_cb_];_cbi_:=0;wl?_cbi_<_cbn_{y:=vg[_cb_,_cbi_];?y['k']=='function'{q:='static SlugResult ' dj[m,_cn_,y['n'],y['z']] +;if ?y['z']{q=q '(size_t argc, SlugValue *argv);' +;}ee{q=q '(SlugObject *self, size_t argc, SlugValue *argv);' +;}cb[s,0,q];}_cbi_=_cbi_1+;}}j=j1+;}i=i1+;}
+    _di_:=0;_dc_:=vl[_dm_];wl?_di_<_dc_{_dn_:=vg[_dm_,_di_];q:='static SlugResult ' dl[_dn_] +;q=q '(SlugObject *self, size_t argc, SlugValue *argv);' +;cb[s,0,q];_di_=_di_1+;}
+    ?_can_>0{cb[s,0,'static void slug_destroy_object(SlugObject *self);'];}
+
+    ##! Function prototypes.
+    da[s, '\n/* Stage-2 function prototypes */\n'];
+    i = 0;
+    wl ?i < n {
+        m := vg[a, i];
+        p := m['ast'];
+        _pn_ := vl[p];
+        j := 0;
+        wl ?j < _pn_ {
+            x := vg[p, j];
+            ?x['k'] == 'function' {
+                _fm_ := m['cf'];
+                z := 'static SlugResult ' _fm_[x['n']] +;
+                z = z '(size_t argc, SlugValue *argv);' +;
+                cb[s, 0, z];
+            }
+            j = j 1 +;
+        }
+        i = i 1 +;
+    }
+
+    ##! Class bodies and dynamic dispatch.
+    da[s, '\n/* Stage-2 class bodies */\n'];
+    i=0;wl?i<n{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{_cn_:=x['n'];dw[s,m,_cn_,x];_cb_:=x['b'];_cbn_:=vl[_cb_];_cbi_:=0;wl?_cbi_<_cbn_{y:=vg[_cb_,_cbi_];?y['k']=='function'{dt[s,m,_cn_,y];}_cbi_=_cbi_1+;}dx[s,m,_cn_,x];}j=j1+;}i=i1+;}
+    _di_:=0;_dc_:=vl[_dm_];wl?_di_<_dc_{dy[s,g,vg[_dm_,_di_]];_di_=_di_1+;}
+    ?_can_>0{dz[s,g];}
+
+    ##! Function bodies.
+    da[s, '\n/* Stage-2 function bodies */\n'];
+    i = 0;
+    wl ?i < n {
+        m := vg[a, i];
+        p := m['ast'];
+        _pn_ := vl[p];
+        j := 0;
+        wl ?j < _pn_ {
+            x := vg[p, j];
+            ?x['k'] == 'function' { cx[s, m, x]; }
+            j = j 1 +;
+        }
+        i = i 1 +;
+    }
+
+    ##! Dependency-first module initialization, ending with the root module.
+    cb[s, 0, 'int main(int argc, char **argv) \{'];
+    cb[s, 1, 'sv_argc = argc; sv_argv = argv;'];
+    cb[s, 1, 'sv_runtime_init();'];
+    cb[s, 1, 'SvLocalRootFrame _slug_roots;'];
+    cb[s, 1, 'sv_local_root_enter(&_slug_roots);'];
+    ?_can_>0{cb[s,1,'sv_object_destructor = slug_destroy_object;'];}
+    ##! Permanent roots for module globals and class static fields.
+    i=0;wl?i<n{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;_rs_:=[:];wl?j<_pn_{x:=vg[p,j];k:=x['k'];_rv_:=0;?k=='define'{_rv_=1;}?_rv_{_rn_:=x['n'];_rh_:=in[_rn_,_rs_];?_rh_==@b|0|{_rs_[_rn_]:=1;_gm_:=m['cg'];q:='sv_root_slot(&' _gm_[_rn_] +;q=q ');' +;cb[s,1,q];}}_ru_:=0;?k=='define-multi'{_ru_=1;}?_ru_{_ra_:=x['a'];_rc_:=vl[_ra_];_ri_:=0;wl?_ri_<_rc_{_rn_:=vg[_ra_,_ri_];_rh_:=in[_rn_,_rs_];?_rh_==@b|0|{_rs_[_rn_]:=1;_gm_:=m['cg'];q:='sv_root_slot(&' _gm_[_rn_] +;q=q ');' +;cb[s,1,q];}_ri_=_ri_1+;}}?k=='class'{_cn_:=x['n'];_cb_:=x['b'];_cbn_:=vl[_cb_];_cbi_:=0;wl?_cbi_<_cbn_{y:=vg[_cb_,_cbi_];?y['k']=='set-member'{t:=y['t'];?t['z']{?y['d']{q:='sv_root_slot(&' dg[m,_cn_,t['n']] +;q=q ');' +;cb[s,1,q];}}}_cbi_=_cbi_1+;}}j=j1+;}i=i1+;}
+    ##! Evaluate static class field initializers once before module code.
+    i=0;wl?i<n{m:=vg[a,i];p:=m['ast'];_pn_:=vl[p];j:=0;wl?j<_pn_{x:=vg[p,j];?x['k']=='class'{_cn_:=x['n'];_oc_:=s['cn'];_os_:=s['se'];_om_:=s['md'];s['cn']=_cn_;s['se']=nn;s['md']='static-init';e:=cd[];_cb_:=x['b'];_cbn_:=vl[_cb_];_cbi_:=0;wl?_cbi_<_cbn_{y:=vg[_cb_,_cbi_];?y['k']=='set-member'{t:=y['t'];?t['z']{?y['d']{v:=ds[s,m,e,t,y['v'],1,1,y['i'],1];}}}_cbi_=_cbi_1+;}s['cn']=_oc_;s['se']=_os_;s['md']=_om_;}j=j1+;}i=i1+;}
+    _ord_ := g['order'];
+    _on_ := vl[_ord_];
+    _oi_ := 0;
+    wl ?_oi_ < _on_ {
+        m := vg[_ord_, _oi_];
+        e := cd[];
+        p := m['ast'];
+        cu[s, m, e, p, 1, 0, 0, nn];
+        _oi_ = _oi_ 1 +;
+    }
+    cb[s, 1, 'fflush(NULL);'];
+    cb[s, 1, 'sv_local_root_leave(&_slug_roots);'];
+    cb[s, 1, 'return 0;'];
+    cb[s, 0, '\}'];
+    FS.hc[h];
+    rv;
+}

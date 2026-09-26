@@ -1,0 +1,6 @@
+a@i8:=7F$
+b@u8:=FF$
+co a;
+co b;
+a=1
+co a

@@ -1,0 +1,5 @@
+//! BASIC 02 — a digit run is partitioned only when surrounding RPN requires it
+a := 52/;
+b := 9$3$-;
+co a;
+co b;

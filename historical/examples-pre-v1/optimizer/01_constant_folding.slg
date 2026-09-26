@@ -1,0 +1,4 @@
+//! v0.1.4 optimizer: straight-line scalar constants fold in MIR and feed native codegen.
+a:=1
+b:=2
+coab+

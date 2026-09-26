@@ -1,0 +1,10 @@
+//! Non-ER raised values are wrapped; finally always runs.
+tr{
+    er'bad'
+}
+cae{
+    coe
+}
+fn{
+    co'fin'
+}

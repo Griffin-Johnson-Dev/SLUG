@@ -1,0 +1,5 @@
+//! Variadics require explicit [] at the call site; the capture itself is a normal list.
+~va[x] {rvln[x]}
+~vb x[y] {rvxln[y]+}
+cova[A$,B$,C$]
+covb[A$,B$,C$]

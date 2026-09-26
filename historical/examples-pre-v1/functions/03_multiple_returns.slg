@@ -1,0 +1,9 @@
+//! Multiple results assign left-to-right; extras are ignored and one result broadcasts.
+~sp x {rvx x1+ x2+}
+ab:=sp[A$]
+coa cob
+c:=sp[A$]
+coc
+~on x {rvx}
+de:=on[B$]
+cod coe

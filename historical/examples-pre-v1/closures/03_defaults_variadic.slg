@@ -1,0 +1,6 @@
+//! Lambda defaults, xx, and fixed+variadic tails.
+f:=lbx=1y=2{rvxy+}
+co!f[]
+co!f[xx,B$]
+v:=lbx[y]{rvxln[y]+}
+co!v[A$,B$,C$]

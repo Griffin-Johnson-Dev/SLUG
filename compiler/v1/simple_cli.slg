@@ -1,0 +1,3 @@
+>'@std/sys':SY
+a := SY.av[];
+co[a];

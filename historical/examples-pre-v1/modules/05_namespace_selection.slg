@@ -1,0 +1,10 @@
+//! <: selects an imported namespace lexically; <:. restores this module.
+>'lib/math':MA
+~sqx{rvx1+}
+<:MA
+co sqA$
+?1{
+    <:.
+    co sqA$
+}
+co sqA$

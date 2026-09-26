@@ -1,0 +1,20 @@
+##! Stage-2 module graph inspection driver.
+>'module_graph.slg'
+>'../v1/vector_core.slg'
+a := av[];
+n := ln[a];
+?n < 1 { er 'usage: module-graph-stage2 <root>'; };
+p := a[0];
+g := bg[p];
+m := g['mods'];
+_count_ := vl[m];
+co[_count_];
+i := 0;
+wl ?i < _count_ {
+    x := vg[m, i];
+    _id_ := x['id'];
+    _path_ := x['path'];
+    co[_id_];
+    co[_path_];
+    i = i 1 +;
+};

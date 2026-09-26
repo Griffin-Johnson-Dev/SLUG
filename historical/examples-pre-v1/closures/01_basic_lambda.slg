@@ -1,0 +1,3 @@
+//! SLUG v0.0.10 — first-class callable value.
+f:=lbx{rvx1+}
+co!f[A$]

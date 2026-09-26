@@ -1,0 +1,6 @@
+//! v0.1.2 — cyclic collection: each unreachable self-cycle is reclaimed at a safe point.
+fl 10${
+    a:=[nn]
+    a[0]:=a
+}
+co'cycles reclaimed'

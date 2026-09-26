@@ -1,0 +1,9 @@
+//! BASIC 04 — true division, integer quotient by cast, and built-in remainder
+a := 5;
+b := 2;
+c := a b /;
+d := @i a b /;
+e := a b %;
+co c;
+co d;
+co e;

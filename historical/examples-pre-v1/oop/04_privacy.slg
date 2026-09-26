@@ -1,0 +1,12 @@
+//! OOP 04 — private implementation state remains usable through public class behavior.
+#PV x {
+    -.x:=x
+    -..n:=1
+    -~rd {rv.x}
+    -~~sg {rv..n}
+    ~gt {rv.rd[]}
+    ~~ok {rv..sg[]}
+}
+a:=PV[A$]
+co[a.gt[]]
+co[PV.ok[]]

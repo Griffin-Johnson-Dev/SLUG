@@ -1,0 +1,7 @@
+//! v0.1 hardening — structural equality handles independent cyclic graphs.
+a:=[nn]
+a[0]:=a
+b:=[nn]
+b[0]:=b
+co?a==b
+co?a===b

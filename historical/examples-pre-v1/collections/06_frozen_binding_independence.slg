@@ -1,0 +1,8 @@
+//! Collections 06 — ::= freezes the binding, @[...] freezes the collection.
+a::=[1,2]
+a[0]=9
+coa
+b:=@[1,2]
+cob
+m:=@['x':1]
+com

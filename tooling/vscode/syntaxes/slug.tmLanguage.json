@@ -1,0 +1,166 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SLUG",
+  "scopeName": "source.slug",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#classes"
+    },
+    {
+      "include": "#extended-identifiers"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#operators"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.slug",
+          "match": "##!?[^\\r\\n]*"
+        },
+        {
+          "name": "comment.block.slug",
+          "begin": "#\\*!?",
+          "end": "\\*#",
+          "patterns": [
+            {
+              "include": "#comments"
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.slug",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.slug",
+              "match": "\\\\(?:[nrt0\\\\'\"{}])"
+            },
+            {
+              "name": "meta.interpolation.slug",
+              "begin": "(?<!\\\\)\\{",
+              "end": "(?<!\\\\)\\}",
+              "patterns": [
+                {
+                  "include": "$self"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "keyword.control.import.slug",
+          "match": ">(?=')"
+        },
+        {
+          "name": "keyword.control.namespace.slug",
+          "match": "<:(?:\\.|[A-Za-z][A-Za-z]|_[A-Za-z0-9]+_)"
+        },
+        {
+          "name": "support.type.module-uri.slug",
+          "match": "@(?:std|dep)/[A-Za-z0-9_./-]+"
+        }
+      ]
+    },
+    "classes": {
+      "patterns": [
+        {
+          "name": "entity.name.type.class.slug",
+          "match": "#\\??[A-Z]{2}\\b"
+        },
+        {
+          "name": "support.class.slug",
+          "match": "\\b[A-Z]{2}\\b"
+        }
+      ]
+    },
+    "extended-identifiers": {
+      "patterns": [
+        {
+          "name": "variable.other.slug",
+          "match": "_[A-Za-z0-9]+_"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.slug",
+          "match": "(?<![A-Za-z0-9_])(?:[0-9]+\\.[0-9]*|\\.[0-9]+)(?![A-Za-z0-9_])"
+        },
+        {
+          "name": "constant.numeric.integer.slug",
+          "match": "(?<![A-Za-z0-9_])[0-9]+\\$?(?![A-Za-z0-9_])"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.slug",
+          "match": "\\b(?:if|ei|ee|wl|fl|bl|cl|rv|tr|ca|fn|er)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.slug",
+          "match": "\\b(?:co|ci|ty|cv|in|iv|ln|sl|by)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.null.slug",
+          "match": "\\bnn\\b"
+        },
+        {
+          "name": "constant.language.default.slug",
+          "match": "\\bxx\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.slug",
+          "match": "===|!==|==|!=|:=|\\+\\+|--|\\^\\^|//|\\^|[+\\-*/%!?=<>]|`"
+        }
+      ]
+    }
+  }
+}

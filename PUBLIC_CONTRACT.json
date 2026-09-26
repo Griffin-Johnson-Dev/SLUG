@@ -1,0 +1,112 @@
+{
+  "language_version": "1.0",
+  "cli_contract_version": 1,
+  "source_extension": ".slg",
+  "crushed_extension": ".slgc",
+  "root_builtins": [
+    "co",
+    "ci",
+    "ty",
+    "cv",
+    "in",
+    "iv",
+    "ln",
+    "sl",
+    "by"
+  ],
+  "standard_modules": {
+    "@std/sys": [
+      "av",
+      "ev",
+      "cw",
+      "pf",
+      "cp",
+      "pc"
+    ],
+    "@std/time": [
+      "tm",
+      "mt",
+      "wt"
+    ],
+    "@std/rand": [
+      "en"
+    ],
+    "@std/fs": [
+      "fr",
+      "ft",
+      "fw",
+      "fa",
+      "fe",
+      "fd",
+      "fm",
+      "md",
+      "rm",
+      "mv",
+      "fo",
+      "hr",
+      "hw",
+      "hs",
+      "hp",
+      "hf",
+      "hc"
+    ],
+    "@std/net": [
+      "so",
+      "cn",
+      "bn",
+      "ls",
+      "ac",
+      "sd",
+      "rc",
+      "sc",
+      "gp"
+    ],
+    "@std/gfx": [
+      "sf",
+      "px",
+      "rf",
+      "dl",
+      "sb",
+      "wn",
+      "wf",
+      "pe",
+      "wx"
+    ],
+    "@std/audio": [
+      "au",
+      "aq",
+      "ax"
+    ],
+    "@std/dev": [
+      "do",
+      "dv",
+      "dr",
+      "dw",
+      "dx"
+    ]
+  },
+  "stable_cli_commands": [
+    "check",
+    "build",
+    "run",
+    "fmt",
+    "crush",
+    "expand"
+  ],
+  "compiler_exit_codes": {
+    "success": 0,
+    "usage": 64,
+    "source_error": 65,
+    "host_unavailable": 69,
+    "internal_error": 70
+  },
+  "runtime_uncaught_error_exit": 66,
+  "diagnostic_json_schema": 1,
+  "identifiers": {
+    "short_variable": "[a-z]",
+    "extended_identifier": "_[A-Za-z0-9]+_",
+    "ascii_only": true,
+    "case_sensitive": true,
+    "interior_underscore": false
+  }
+}

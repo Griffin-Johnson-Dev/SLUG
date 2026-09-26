@@ -1,0 +1,7 @@
+// Integer quotient from true division + @i; remainder uses %.
+a := 5
+b := 2
+x := @i a b /
+r := a b %
+co x
+co r

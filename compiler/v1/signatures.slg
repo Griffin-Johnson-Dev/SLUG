@@ -1,0 +1,47 @@
+##! SLUG v1 frontend — audited root and standard-module callable signatures.
+##! Each entry stores minimum arity a, maximum arity b, and dense-inference flag d.
+##! Only the nine language-root builtins live in sa. Capability names stay namespaced.
+~sa {
+    s := [:];
+    s['co'] := ['a':1,'b':1,'d':1];
+    s['ci'] := ['a':0,'b':1,'d':1];
+    s['ty'] := ['a':1,'b':1,'d':0];
+    s['cv'] := ['a':2,'b':2,'d':0];
+    s['in'] := ['a':2,'b':2,'d':1];
+    s['iv'] := ['a':2,'b':2,'d':1];
+    s['ln'] := ['a':1,'b':1,'d':1];
+    s['sl'] := ['a':1,'b':1,'d':1];
+    s['by'] := ['a':1,'b':1,'d':0];
+    rv s;
+}
+
+##! Canonical @std/* member signatures. These never enter the ordinary root table.
+~sb {
+    z := [:];
+    m := [:];
+    m['av'] := ['a':0,'b':0,'d':0]; m['ev'] := ['a':1,'b':1,'d':0];
+    m['cw'] := ['a':0,'b':0,'d':0]; m['pf'] := ['a':0,'b':0,'d':0];
+    m['cp'] := ['a':1,'b':1,'d':0]; m['pc'] := ['a':1,'b':1,'d':0];
+    z['@std/sys'] := m;
+    m = [:]; m['tm'] := ['a':0,'b':0,'d':0]; m['mt'] := ['a':0,'b':0,'d':0]; m['wt'] := ['a':1,'b':1,'d':0]; z['@std/time'] := m;
+    m = [:]; m['en'] := ['a':1,'b':1,'d':0]; z['@std/rand'] := m;
+    m = [:];
+    m['fr'] := ['a':1,'b':1,'d':0]; m['ft'] := ['a':1,'b':1,'d':0]; m['fw'] := ['a':2,'b':2,'d':0]; m['fa'] := ['a':2,'b':2,'d':0];
+    m['fe'] := ['a':1,'b':1,'d':0]; m['fd'] := ['a':1,'b':1,'d':0]; m['fm'] := ['a':1,'b':1,'d':0]; m['md'] := ['a':1,'b':1,'d':0];
+    m['rm'] := ['a':1,'b':1,'d':0]; m['mv'] := ['a':2,'b':2,'d':0]; m['fo'] := ['a':2,'b':2,'d':0]; m['hr'] := ['a':2,'b':2,'d':0];
+    m['hw'] := ['a':2,'b':2,'d':0]; m['hs'] := ['a':3,'b':3,'d':0]; m['hp'] := ['a':1,'b':1,'d':0]; m['hf'] := ['a':1,'b':1,'d':0]; m['hc'] := ['a':1,'b':1,'d':0];
+    z['@std/fs'] := m;
+    m = [:];
+    m['so'] := ['a':0,'b':0,'d':0]; m['cn'] := ['a':3,'b':3,'d':0]; m['bn'] := ['a':3,'b':3,'d':0]; m['ls'] := ['a':2,'b':2,'d':0];
+    m['ac'] := ['a':1,'b':1,'d':0]; m['sd'] := ['a':2,'b':2,'d':0]; m['rc'] := ['a':2,'b':2,'d':0]; m['sc'] := ['a':1,'b':1,'d':0]; m['gp'] := ['a':1,'b':1,'d':0];
+    z['@std/net'] := m;
+    m = [:];
+    m['sf'] := ['a':2,'b':2,'d':0]; m['px'] := ['a':4,'b':4,'d':0]; m['rf'] := ['a':6,'b':6,'d':0]; m['dl'] := ['a':6,'b':6,'d':0];
+    m['sb'] := ['a':1,'b':1,'d':0]; m['wn'] := ['a':3,'b':3,'d':0]; m['wf'] := ['a':2,'b':2,'d':0]; m['pe'] := ['a':1,'b':1,'d':0]; m['wx'] := ['a':1,'b':1,'d':0];
+    z['@std/gfx'] := m;
+    m = [:]; m['au'] := ['a':2,'b':2,'d':0]; m['aq'] := ['a':2,'b':2,'d':0]; m['ax'] := ['a':1,'b':1,'d':0]; z['@std/audio'] := m;
+    m = [:]; m['do'] := ['a':2,'b':2,'d':0]; m['dv'] := ['a':2,'b':2,'d':0]; m['dr'] := ['a':2,'b':2,'d':0]; m['dw'] := ['a':2,'b':2,'d':0]; m['dx'] := ['a':1,'b':1,'d':0]; z['@std/dev'] := m;
+    ##! Compiler-internal CLI host hooks. Not part of the public @std/* contract.
+    m = [:]; m['ex'] := ['a':1,'b':1,'d':0]; m['se'] := ['a':1,'b':1,'d':0]; m['so'] := ['a':1,'b':1,'d':0]; m['ep'] := ['a':0,'b':0,'d':0]; z['@internal/cli'] := m;
+    rv z;
+}

@@ -1,0 +1,6 @@
+//! Defaults may be omitted, partially supplied, or selected explicitly with xx.
+~ad x=1 y=2 {rvxy+}
+coad
+coadA$
+coadxxB$
+coad[3,4]

@@ -1,0 +1,3 @@
+// With no AB class, ABA$ is hexadecimal 0xABA.
+a := ABA$
+co a

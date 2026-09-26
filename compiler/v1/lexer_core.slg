@@ -1,0 +1,360 @@
+##! SLUG self-host Stage 1 lexer.
+##! Deliberately explicit and conservative: this mirrors the frozen Python lexer's
+##! hard token boundaries while leaving contextual ambiguity to the parser.
+>'vector_core.slg'
+
+##! K9J: lexical provenance is captured only on an actual lexer failure.
+##! Successful tokenization carries no extra per-token bookkeeping beyond the frozen token fields.
+_lexloc_ := nn;
+-~lp l c t m {
+    e:=c ln[t]+;?ln[t]==0{e=c1+;}
+    _lexloc_=['found':1,'line':l,'column':c,'end_line':l,'end_column':e,'token':t];
+    er m;
+}
+~lr s {_lexloc_=nn;tr{lx[s];}ca _e_{rv _lexloc_;}rv nn;}
+~sw s i p {
+    a := ln[s];
+    b := ln[p];
+    ?i b + > a {
+        rv 0;
+    }
+    x := s[i:i b +];
+    rv ?x == p;
+}
+~dg c {
+    rv in[c, '0123456789'];
+}
+~lo c {
+    rv in[c, 'abcdefghijklmnopqrstuvwxyz'];
+}
+~up c {
+    rv in[c, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+}
+~an c {
+    rv ?in[c, '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+}
+~ws c {
+    ?in[c, ' \t\n\r'] { rv 1; }
+    ## ASCII whitespace not covered by the ordinary escaped forms above.
+    ?c < ' ' {
+        _wb_ := by[c];
+        ?ln[_wb_] == 1 {
+            _wv_ := _wb_[0];
+            ?_wv_ == 11$ { rv 1; }
+            ?_wv_ == 12$ { rv 1; }
+            ?_wv_ >= 28$ { ?_wv_ <= 31$ { rv 1; } }
+        }
+    }
+    ## Match the audited reference lexer's non-ASCII Unicode whitespace set.
+    ?in[c, '                 　'] { rv 1; }
+    rv 0;
+}
+
+## Normalize the normative logical source stream: optional UTF-8 BOM at offset 0,
+## and CRLF/CR source newlines to LF. Invalid UTF-8 has already been rejected by
+## the SLUG string runtime before the lexer receives `s`.
+~nr s {
+    o := '';
+    i := 0;
+    n := ln[s];
+    ?n > 0 {
+        b := by[s[0]];
+        ?ln[b] == 3 {
+            ?b[0] == 239$ { ?b[1] == 187$ { ?b[2] == 191$ { i = 1; } } }
+        }
+    }
+    wl ?i < n {
+        h := s[i];
+        b := by[h];
+        _cr_ := 0;
+        ?ln[b] == 1 { ?b[0] == 13$ { _cr_=1; } }
+        ?_cr_ {
+            o = o '\n' +;
+            i = i 1 +;
+            ?i < n { ?s[i] == '\n' { i=i1+; } }
+            cl
+        }
+        o = o h +;
+        i = i 1 +;
+    }
+    rv o;
+}
+~mo s x {
+    o := ['<:.', '::=', '!==', '===', '<:', ':=', '==', '!=', '<=', '>=', '++', '--', '^^', '~-', '~~', '//'];
+    fl i o {
+        a := sw[s, x, i];
+        ?a {
+            rv i;
+        }
+    }
+    z := nn;
+    rv z;
+}
+~tk k t s e l c p {
+    rv ['k': k, 't': t, 's': s, 'e': e, 'l': l, 'c': c, 'p': p];
+}
+~lx s {
+    s = nr[s];
+    o := vn[];
+    i := 0;
+    n := ln[s];
+    l := 1;
+    c := 1;
+    wl ?i < n {
+        h := s[i];
+        ?ws[h] {
+            if ?h == '\n' {
+                l = l 1 +;
+                c = 1;
+            }
+            ee {
+                c = c 1 +;
+            }
+            i = i 1 +;
+            cl
+        }
+        a := i;
+        b := l;
+        d := c;
+        ##! v1 line comments. `##!` survives crush.
+        ?sw[s, i, '##'] {
+            p := sw[s, i, '##!'];
+            j := i;
+            wl ?j < n {
+                ?s[j] == '\n' { bl }
+                j = j 1 +;
+            }
+            x := s[i:j];
+            _tok_ := tk['COMMENT', x, a, j, b, d, p];
+            vp[o, _tok_];
+            c = c j i - +;
+            i = j;
+            cl
+        }
+        ##! v1 nested block comments. `#*!` survives crush.
+        ?sw[s, i, '#*'] {
+            p := sw[s, i, '#*!'];
+            q := 0;
+            j := i;
+            wl ?j < n {
+                ?sw[s, j, '#*'] { q=q1+; j=j2+; cl }
+                ?sw[s, j, '*#'] {
+                    q=q1-; j=j2+;
+                    ?q == 0 { bl }
+                    cl
+                }
+                j=j1+;
+            }
+            ?q != 0 { lp[b,d,'#*','unterminated block comment']; }
+            x := s[i:j];
+            k := i;
+            wl ?k < j {
+                if ?s[k] == '\n' { l=l1+; c=1; }
+                ee { c=c1+; }
+                k=k1+;
+            }
+            _tok_ := tk['COMMENT', x, a, j, b, d, p];
+            vp[o, _tok_];
+            i = j;
+            cl
+        }
+        ##! Audited v1 has exactly one source string quote: single quote.
+        ##! The lexer is interpolation-aware so nested quotes/comments inside `{...}`
+        ##! cannot accidentally terminate the outer string token.
+        ?h == '"' { lp[b,d,'"','double-quoted strings are not part of SLUG v1; use single quotes']; }
+        ?h == '\'' {
+            j := i 1 +;
+            _id_ := 0;
+            _closed_ := 0;
+            wl ?j < n {
+                x := s[j];
+                ?x == '\n' { _lc_:=d j i - +;lp[b,_lc_,'\\n','physical newline inside string; use \\n']; }
+                ?_id_ == 0 {
+                    ?x == '\\' {
+                        ?j 1 + >= n { _lc_:=d j i - +;lp[b,_lc_,'\\','trailing backslash in string']; }
+                        j=j2+; cl
+                    }
+                    ?x == '\{' { _id_=1; j=j1+; cl }
+                    ?x == '\'' { j=j1+; _closed_=1; bl }
+                    j=j1+; cl
+                }
+
+                ## interpolation body: nested strings are opaque to brace matching.
+                ?x == '\'' {
+                    j=j1+; _nsc_:=0;
+                    wl ?j < n {
+                        y:=s[j];
+                        ?y == '\n' { _lc_:=d j i - +;lp[b,_lc_,'\\n','physical newline inside nested string; use \\n']; }
+                        ?y == '\\' {
+                            ?j 1 + >= n { _lc_:=d j i - +;lp[b,_lc_,'\\','trailing backslash in nested string']; }
+                            j=j2+; cl
+                        }
+                        ?y == '\'' { j=j1+; _nsc_=1; bl }
+                        j=j1+;
+                    }
+                    ?!_nsc_ { _lc_:=d j i - +;lp[b,_lc_,'\'','unterminated nested string in interpolation']; }
+                    cl
+                }
+                ## nested block comments are opaque inside interpolation.
+                ?sw[s,j,'#*'] {
+                    _bd_:=1; j=j2+;
+                    wl ?j<n {
+                        ?s[j]=='\n' { _lc_:=d j i - +;lp[b,_lc_,'\\n','physical newline inside string interpolation']; }
+                        ?sw[s,j,'#*'] {_bd_=_bd_1+;j=j2+;cl}
+                        ?sw[s,j,'*#'] {_bd_=_bd_1-;j=j2+;?_bd_==0{bl}cl}
+                        j=j1+;
+                    }
+                    ?_bd_!=0 { _lc_:=d j i - +;lp[b,_lc_,'#*','unterminated block comment in interpolation']; }
+                    cl
+                }
+                ?sw[s,j,'##'] { _lc_:=d j i - +;lp[b,_lc_,'##','line comment cannot terminate inside string interpolation']; }
+                ?x == '\{' { _id_=_id_1+; }
+                ?x == '\}' { _id_=_id_1-; }
+                j=j1+;
+            }
+            ?!_closed_ {
+                ?_id_ { lp[b,d,'\'','unterminated string interpolation']; }
+                lp[b,d,'\'','unterminated string'];
+            }
+            x := s[i:j];
+            _tok_ := tk['STRING', x, a, j, b, d, 0];
+            vp[o, _tok_];
+            c = c ln[x] +;
+            i = j;
+            cl
+        }
+        ##! extended identifier: _x_, _currentIndex_, _a1B2_
+        ?h == '_' {
+            j := i 1 +;
+            ?j >= n {
+                lp[b,d,'_','invalid extended identifier'];
+            }
+            y := an[s[j]];
+            ?!y {
+                lp[b,d,'_','invalid extended identifier'];
+            }
+            wl ?j < n {
+                ?an[s[j]] {
+                    j = j 1 +;
+                    cl
+                }
+                bl
+            }
+            ?j >= n {
+                lp[b,d,'_','extended identifier must end with underscore'];
+            }
+            ?s[j] != '_' {
+                lp[b,d,'_','extended identifier must end with underscore'];
+            }
+            j = j 1 +;
+            x := s[i:j];
+            _tok_ := tk['EXT', x, a, j, b, d, 0];
+            vp[o, _tok_];
+            _len_ := ln[x];
+            c = c _len_ +;
+            i = j;
+            cl
+        }
+        ##! .23 style float, otherwise '.' remains punctuation
+        ?h == '.' {
+            y := 0;
+            ?i 1 + < n {
+                ?dg[s[i 1 +]] {
+                    y = 1;
+                }
+            }
+            ?y {
+                j := i 1 +;
+                wl ?j < n {
+                    y := dg[s[j]];
+                    ?!y {
+                        bl
+                    }
+                    j = j 1 +;
+                }
+                x := s[i:j];
+                _tok_ := tk['FLOAT', x, a, j, b, d, 0];
+                vp[o, _tok_];
+                _len_ := ln[x];
+                c = c _len_ +;
+                i = j;
+                cl
+            }
+        }
+        ##! digit runs containing '.' are hard floats; pure runs remain one DIGIT each
+        ?dg[h] {
+            j := i;
+            wl ?j < n {
+                y := dg[s[j]];
+                ?!y {
+                    bl
+                }
+                j = j 1 +;
+            }
+            y := 0;
+            ?j < n {
+                ?s[j] == '.' {
+                    y = 1;
+                }
+            }
+            ?y {
+                j = j 1 +;
+                wl ?j < n {
+                    y := dg[s[j]];
+                    ?!y {
+                        bl
+                    }
+                    j = j 1 +;
+                }
+                x := s[i:j];
+                _tok_ := tk['FLOAT', x, a, j, b, d, 0];
+                vp[o, _tok_];
+                _len_ := ln[x];
+                c = c _len_ +;
+                i = j;
+                cl
+            }
+            _tok_ := tk['DIGIT', h, a, i 1 +, b, d, 0];
+            vp[o, _tok_];
+            i = i 1 +;
+            c = c 1 +;
+            cl
+        }
+        x := mo[s, i];
+        ?x != nn {
+            _len_ := ln[x];
+            j := i _len_ +;
+            _tok_ := tk['OP', x, a, j, b, d, 0];
+            vp[o, _tok_];
+            i = j;
+            _len_ := ln[x];
+            c = c _len_ +;
+            cl
+        }
+        ?in[h, '\{\}[](),:;.#~@!?+-*/%^=<>$|`'] {
+            _tok_ := tk['PUNC', h, a, i 1 +, b, d, 0];
+            vp[o, _tok_];
+            i = i 1 +;
+            c = c 1 +;
+            cl
+        }
+        ?lo[h] {
+            _tok_ := tk['LOWER', h, a, i 1 +, b, d, 0];
+            vp[o, _tok_];
+            i = i 1 +;
+            c = c 1 +;
+            cl
+        }
+        ?up[h] {
+            _tok_ := tk['UPPER', h, a, i 1 +, b, d, 0];
+            vp[o, _tok_];
+            i = i 1 +;
+            c = c 1 +;
+            cl
+        }
+        lp[b,d,h,'unexpected character'];
+    }
+    _tok_ := tk['EOF', '', n, n, l, c, 0];
+    vp[o, _tok_];
+    rv o;
+}

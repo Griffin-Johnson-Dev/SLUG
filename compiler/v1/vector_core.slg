@@ -1,0 +1,48 @@
+##! SLUG self-host Stage 1 — chunked growable vector.
+##! Deliberately explicit bootstrap code: maps store bounded 64-entry chunks.
+~vn {
+    rv ['n': 0, 'c': [:]];
+}
+~vl v {
+    a := v['n'];
+    rv a;
+}
+~vg v i {
+    q := i 64$ //;
+    r := i 64$ %;
+    c := v['c'];
+    h := c[q];
+    a := h[r];
+    rv a;
+}
+~vs v i x {
+    q := i 64$ //;
+    r := i 64$ %;
+    c := v['c'];
+    a := in[q, c];
+    ?!a {
+        c[q] := [:];
+    }
+    h := c[q];
+    h[r] := x;
+    n := v['n'];
+    ?i >= n {
+        v['n'] = i 1 +;
+    }
+    rv x;
+}
+~vp v x {
+    i := v['n'];
+    vs[v, i, x];
+    rv x;
+}
+~vo v {
+    n := v['n'];
+    ?n <= 0 {
+        er 'vector pop from empty vector';
+    }
+    n = n 1 -;
+    a := vg[v, n];
+    v['n'] = n;
+    rv a;
+}

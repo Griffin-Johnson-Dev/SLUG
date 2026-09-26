@@ -1,0 +1,6 @@
+//! User functions can recurse and can read module bindings.
+g:=2
+~fc x {?x<=1{rv1}rvxfc[x1-]*}
+~ag x {rvgx+}
+cofc[5]
+coag3

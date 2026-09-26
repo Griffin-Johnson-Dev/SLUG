@@ -1,0 +1,6 @@
+>'@std/sys':SY
+>'program_core.slg'
+a:=SY.av[]
+c:=pa[a[0]]
+s:=c['s']
+co[s['ad']]

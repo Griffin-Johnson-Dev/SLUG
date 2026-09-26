@@ -1,0 +1,6 @@
+//! Collections 04 — Unicode code-point indexing/slicing and foreach.
+s:='🐌ab'
+co[ln[s]]
+co[s[0]]
+co[s[1:]]
+flcs{coc}

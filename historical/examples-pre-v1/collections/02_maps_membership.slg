@@ -1,0 +1,12 @@
+//! Collections 02 — map creation/update, key/value membership, and length.
+m:=[:]
+m['name']:='slug'
+m['n']:=A$
+com
+co[m['name']]
+co[in'name'm]
+co[ivA$m]
+co[ln[m]]
+m['n']=B$
+co[m['n']]
+co[m['z']:=C$]

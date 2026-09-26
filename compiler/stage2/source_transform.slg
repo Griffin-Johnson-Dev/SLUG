@@ -1,0 +1,179 @@
+##! K9C native public source transforms.
+##! These transforms operate on the audited v1 lexer token stream.  Pretty formatting
+##! preserves every token.  Crushing may remove ordinary comments and only removes a
+##! token boundary when re-lexing the adjacent pair proves the exact same two tokens.
+>'../v1/lexer_core.slg'
+>'../v1/vector_core.slg'
+
+##! Indentation string (four spaces per depth).
+~ta d {
+    o := '';
+    i := 0;
+    wl ?i < d { o = o '    ' +; i=i1+; }
+    rv o;
+}
+
+##! Filter one source token stream. d=true drops non-preserved comments.
+~tb s d {
+    a := lx[s];
+    o := vn[];
+    n := vl[a];
+    i := 0;
+    wl ?i < n {
+        t := vg[a,i];
+        k := t['k'];
+        ?k == 'EOF' { i=i1+; cl }
+        ?k == 'COMMENT' {
+            ?d { ?t['p'] == @b|0| { i=i1+; cl } }
+        }
+        vp[o,t];
+        i=i1+;
+    }
+    rv o;
+}
+
+##! Whether concatenating two non-comment token spellings reproduces exactly those
+##! two lexer tokens.  If not, a real separator is required.
+~tc a b {
+    ?a['k']=='COMMENT' { rv 0; }
+    ?b['k']=='COMMENT' { rv 0; }
+    s := a['t'] b['t'] +;
+    tr {
+        q := lx[s];
+        ?vl[q] != 3 { rv 0; }
+        x := vg[q,0];
+        y := vg[q,1];
+        ?x['k'] != a['k'] { rv 0; }
+        ?x['t'] != a['t'] { rv 0; }
+        ?y['k'] != b['k'] { rv 0; }
+        ?y['t'] != b['t'] { rv 0; }
+        rv 1;
+    } ca e {
+        rv 0;
+    }
+}
+
+##! Canonical crushed spelling. Semicolons are retained in K9C; later compression
+##! work may proof-remove statement terminators without changing this CLI contract.
+~td s {
+    a := tb[s,1];
+    n := vl[a];
+    o := '';
+    i := 0;
+    p := nn;
+    wl ?i < n {
+        t := vg[a,i];
+        k := t['k'];
+        x := t['t'];
+        ?p != nn {
+            _line_ := 0;
+            ?p['k']=='COMMENT' { ?ln[p['t']]>=3 { ?p['t'][:3]=='##!' { _line_=1; } } }
+            if ?_line_ { o=o '\n'+; }
+            ee {
+                _safe_ := tc[p,t];
+                ?_safe_==0 { o=o ' '+; }
+            }
+        }
+        o = o x +;
+        p = t;
+        i=i1+;
+    }
+    rv o;
+}
+
+##! Canonical readable token layout. This deliberately favors deterministic,
+##! semantics-preserving layout over source-spelling restoration.
+~te s {
+    a := tb[s,0];
+    n := vl[a];
+    o := '';
+    d := 0;
+    l := 1;
+    p := nn;
+    i := 0;
+    wl ?i < n {
+        t := vg[a,i];
+        k := t['k'];
+        x := t['t'];
+        ?k == 'COMMENT' {
+            ?l==0 { o=o '\n'+; }
+            o=o ta[d]+;
+            o=o x+;
+            o=o '\n'+;
+            l=1;
+            p=nn;
+            i=i1+;
+            cl
+        }
+        ?x == '\}' {
+            ?l==0 { o=o '\n'+; }
+            ?d>0 { d=d1-; }
+            o=o ta[d]+;
+            o=o '\}'+;
+            l=0;
+            p=t;
+            i=i1+;
+            cl
+        }
+        ?x == '\{' {
+            ?l { o=o ta[d]+; l=0; }
+            ?p!=nn { ?p['t']!=' ' { o=o ' '+; } }
+            o=o '\{'+;
+            o=o '\n'+;
+            d=d1+;
+            l=1;
+            p=nn;
+            i=i1+;
+            cl
+        }
+        ?x == ';' {
+            ?l { o=o ta[d]+; l=0; }
+            o=o ';\n'+;
+            l=1;
+            p=nn;
+            i=i1+;
+            cl
+        }
+        ?l { o=o ta[d]+; l=0; }
+        _sp_ := 0;
+        ?p!=nn {
+            ## Readability around operators and comma-like punctuation; otherwise
+            ## keep token clusters together when the lexer proves it is safe.
+            ?k=='OP' { _sp_=1; }
+            ?p['k']=='OP' { _sp_=1; }
+            ?x==',' { _sp_=0; }
+            ?p['t']==',' { _sp_=1; }
+            ?x==']' { _sp_=0; }
+            ?x=='.' { _sp_=0; }
+            ?p['t']=='.' { _sp_=0; }
+            ?x==':' { _sp_=0; }
+            ?p['t']==':' { _sp_=0; }
+            ?_sp_==0 { ?tc[p,t]==0 { _sp_=1; } }
+            ?_sp_ { o=o ' '+; }
+        }
+        o=o x+;
+        p=t;
+        i=i1+;
+    }
+    ?l==0 { o=o '\n'+; }
+    rv o;
+}
+
+##! Exact token-stream equivalence after optional ordinary-comment filtering.
+##! Used as a defensive transform gate before writing public CLI output.
+~tf a b d {
+    x := tb[a,d];
+    y := tb[b,d];
+    n := vl[x];
+    ?n != vl[y] { rv 0; }
+    i := 0;
+    wl ?i < n {
+        p := vg[x,i];
+        q := vg[y,i];
+        ?p['k'] != q['k'] { rv 0; }
+        ?p['t'] != q['t'] { rv 0; }
+        ?p['p'] != q['p'] { rv 0; }
+        i=i1+;
+    }
+    rv 1;
+}

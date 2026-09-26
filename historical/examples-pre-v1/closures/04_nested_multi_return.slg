@@ -1,0 +1,17 @@
+//! Callable values can return several values; nested closures share captured cells.
+f:=lbx{rvx x1+}
+ab:=!f[A$]
+coa cob
+~mk{
+    a:=1
+    rv lb{
+        rv lb{
+            a=a1+
+            rva
+        }
+    }
+}
+g:=mk
+h:=!g[]
+co!h[]
+co!h[]

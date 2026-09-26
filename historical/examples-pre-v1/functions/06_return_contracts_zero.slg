@@ -1,0 +1,7 @@
+//! Optional multi-return contracts cast each returned slot; rv alone returns zero values.
+~sp[@i,@s]x {rvx @sx}
+ab:=sp[A$]
+coa cob
+~np{rv}
+np
+co'done'

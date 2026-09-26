@@ -1,0 +1,15 @@
+##! SLUG v1 program-parser expression dependency facade.
+##! Keeps expr_core's dense helper namespace out of program_core under the Stage-2 bootstrap.
+>'expr_core.slg'
+>'common.slg'
+~za c p {rv ea[c,p];}
+~zb c p {rv ec[c,p];}
+~zc c p {t:=c['t'];?hb[t,p]=='?'{rv je[c,p];}rv ez[c,p];}
+##! Parse one explicit [arg,...] pack with default-sentinel support.
+~zh c p {rv el[c,p,1];}
+~zd a i {rv eh[a,i];}
+~ze s g {rv jg[s,g];}
+##! Parse one static @type code through the expression frontend.
+~zf c p {rv eb[c,p];}
+~zg t g {rv jj[t,g];}
+

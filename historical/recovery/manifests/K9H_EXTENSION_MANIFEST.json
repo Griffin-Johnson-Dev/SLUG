@@ -1,0 +1,17 @@
+{
+  "milestone": "K9H",
+  "kind": "vscode-client-distribution",
+  "compiler_base": "0.9.0-dev+k9g",
+  "language_version": "1.0",
+  "lsp_contract_base": "K9G",
+  "extension": {
+    "id": "slug-lang.slug-language",
+    "version": "0.9.0",
+    "preview": true,
+    "vsix": "share/slug/1.0/tooling/vscode/slug-language-k9h.vsix",
+    "vsix_sha256": "34c763e3e2c1dffb5a4503d11af82d963bc8d8a977af04afa1be58934c942c24",
+    "vsix_bytes": 9534
+  },
+  "compiler_semantics_changed": false,
+  "compiler_seed_changed": false
+}
