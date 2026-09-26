@@ -1,4 +1,4 @@
-# SLUG
+# SLUG (Symbolic Low-Overhead Unified Grammar)
 
 SLUG is a compact, compiled programming language built around dense syntax, deterministic ambiguity resolution, RPN arithmetic, explicit module identities, and a self-hosted native compiler.
 
