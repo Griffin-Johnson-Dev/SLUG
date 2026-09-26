@@ -11,8 +11,31 @@ FILES = [
     'syntaxes/slug.tmLanguage.json',
 ]
 
-def content_types():
-    return '''<?xml version="1.0" encoding="utf-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  <Default Extension="json" ContentType="application/json" />\n  <Default Extension="js" ContentType="application/javascript" />\n  <Default Extension="md" ContentType="text/markdown" />\n  <Default Extension="txt" ContentType="text/plain" />\n  <Default Extension="vsixmanifest" ContentType="text/xml" />\n</Types>\n'''
+CONTENT_TYPES = {
+    'js': 'application/javascript',
+    'json': 'application/json',
+    'md': 'text/markdown',
+    # Microsoft documents PNG as application/octet-stream for VSIX OPC metadata.
+    'png': 'application/octet-stream',
+    'txt': 'text/plain',
+    'vsixmanifest': 'text/xml',
+}
+
+def content_types(package_files):
+    extensions = {'vsixmanifest'}
+    for name in package_files:
+        suffix = Path(name).suffix.lower().lstrip('.')
+        if not suffix:
+            raise SystemExit(f'VSIX payload has no file extension: {name}')
+        extensions.add(suffix)
+    missing = sorted(extensions - CONTENT_TYPES.keys())
+    if missing:
+        raise SystemExit('missing VSIX content type mapping: ' + ', '.join(missing))
+    rows = '\n'.join(
+        f'  <Default Extension="{ext}" ContentType="{CONTENT_TYPES[ext]}" />'
+        for ext in sorted(extensions)
+    )
+    return f'''<?xml version="1.0" encoding="utf-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n{rows}\n</Types>\n'''
 
 def manifest(pkg: dict):
     name = escape(pkg['name']); display = escape(pkg.get('displayName', pkg['name']))
@@ -30,9 +53,10 @@ def add_bytes(zf, name, data):
 def build(root: Path, out: Path):
     ext = root/'tooling'/'vscode'
     pkg = json.loads((ext/'package.json').read_text(encoding='utf-8'))
+    package_files = [*FILES, 'LICENSE.txt']
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, 'w') as zf:
-        add_bytes(zf, '[Content_Types].xml', content_types().encode())
+        add_bytes(zf, '[Content_Types].xml', content_types(package_files).encode())
         add_bytes(zf, 'extension.vsixmanifest', manifest(pkg).encode())
         for rel in FILES:
             p = ext/rel

@@ -2,7 +2,7 @@
   "name": "slug-devkit",
   "displayName": "SLUG Lang DevKit",
   "description": "Development tools for the SLUG programming language: syntax highlighting, diagnostics, formatting, and native-backed LSP integration.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "griffinjohnson",
   "license": "Apache-2.0",
   "preview": false,

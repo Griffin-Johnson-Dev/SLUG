@@ -25,7 +25,7 @@ def main()->int:
 
     pkg=json.loads((EXT/'package.json').read_text())
     g.ok(pkg['name']=='slug-devkit' and pkg['publisher']=='griffinjohnson','extension identity')
-    g.ok(pkg['version']=='1.0.2' and pkg.get('preview') is False,'extension public version')
+    g.ok(pkg['version']=='1.0.3' and pkg.get('preview') is False,'extension public version')
     g.ok(pkg['engines']['vscode'].startswith('^1.'),'VS Code engine constraint')
     g.ok(pkg.get('icon')=='icon.png' and (EXT/'icon.png').is_file(),'Marketplace icon payload')
     langs=pkg['contributes']['languages']; g.ok(any(x['id']=='slug' and '.slg' in x['extensions'] and '.slgc' in x['extensions'] for x in langs),'SLUG language registration')
@@ -92,6 +92,12 @@ def main()->int:
             g.ok(icon_asset is not None and icon_asset.attrib.get('Path')=='extension/icon.png','VSIX Marketplace icon asset')
             flags=xm.find('.//v:GalleryFlags',nsxml)
             g.ok(flags is not None and flags.text=='Public','VSIX public gallery flag')
+            ct=ET.fromstring(z.read('[Content_Types].xml'))
+            nsct={'c':'http://schemas.openxmlformats.org/package/2006/content-types'}
+            declared={x.attrib.get('Extension') for x in ct.findall('c:Default',nsct)}
+            payload_exts={Path(x).suffix.lower().lstrip('.') for x in names if x not in {'[Content_Types].xml'} and Path(x).suffix}
+            g.ok('png' in declared,'VSIX PNG content type')
+            g.ok(payload_exts<=declared,'VSIX content types cover every payload extension',f'missing={sorted(payload_exts-declared)}')
 
     layout=json.loads((ROOT/'INSTALL_LAYOUT.json').read_text())
     g.ok(layout.get('vscode_extension')=='share/slug/1.0/tooling/vscode/slug-language.vsix','install-layout VSIX contract')

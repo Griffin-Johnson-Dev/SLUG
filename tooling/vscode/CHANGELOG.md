@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.3
+
+- Repair VSIX Open Packaging Convention metadata so `icon.png` is declared in `[Content_Types].xml` and the Marketplace can resolve the existing icon asset.
+- Preserve the SLUG 1.0 whitespace-aware TextMate grammar shipped in DevKit 1.0.2 unchanged.
+- Add package validation that requires a content-type declaration for every file extension carried by the VSIX.
+
 ## 1.0.2
 
 - Align syntax highlighting with SLUG 1.0 whitespace invariance for core builtins, reserved two-letter keywords, class names, namespace punctuation, and hard operators such as spaced `: =`.
