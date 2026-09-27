@@ -134,6 +134,18 @@ STD_MODULE_NAMES: dict[str, tuple[str, ...]] = {
     "@std/gfx": ("sf", "px", "rf", "dl", "sb", "wn", "wf", "pe", "wx"),
     "@std/audio": ("au", "aq", "ax"),
     "@std/dev": ("do", "dv", "dr", "dw", "dx"),
+    "@std/list": ("ap", "ip", "rm", "pp"),
+}
+
+# Most historical standard capabilities have globally unique two-letter export names,
+# so they can reuse the legacy public spec table.  Explicit modules are namespaces,
+# though, and are allowed to reuse an export spelling.  Keep module-specific specs
+# here instead of forcing artificial global uniqueness (for example LI.rm vs FS.rm).
+_STD_MODULE_SPEC_OVERRIDES: dict[tuple[str, str], BuiltinSpec] = {
+    ("@std/list", "ap"): BuiltinSpec("ap", 2, 2, "list", "sv_builtin_list_ap", mutates_args=True),
+    ("@std/list", "ip"): BuiltinSpec("ip", 3, 3, "list", "sv_builtin_list_ip", mutates_args=True),
+    ("@std/list", "rm"): BuiltinSpec("rm", 2, 2, "b", "sv_builtin_list_rm", mutates_args=True),
+    ("@std/list", "pp"): BuiltinSpec("pp", 1, 2, None, "sv_builtin_list_pp", mutates_args=True),
 }
 
 _PUBLIC_SPECS: dict[str, BuiltinSpec] = {spec.name: spec for spec in _SPECS}
@@ -158,7 +170,9 @@ for uri, names in STD_MODULE_NAMES.items():
     exports: dict[str, str] = {}
     module_tag = uri.removeprefix("@std/").replace("/", "_")
     for public_name in names:
-        base = _PUBLIC_SPECS[public_name]
+        base = _STD_MODULE_SPEC_OVERRIDES.get((uri, public_name), _PUBLIC_SPECS.get(public_name))
+        if base is None:
+            raise RuntimeError(f"missing builtin spec for {uri}.{public_name}")
         internal = f"__slug_std_{module_tag}_{public_name}"
         exports[public_name] = internal
         BUILTINS[internal] = BuiltinSpec(

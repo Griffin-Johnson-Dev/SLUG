@@ -19,6 +19,7 @@ EXPECTED_STD = {
     "@std/gfx": ("sf", "px", "rf", "dl", "sb", "wn", "wf", "pe", "wx"),
     "@std/audio": ("au", "aq", "ax"),
     "@std/dev": ("do", "dv", "dr", "dw", "dx"),
+    "@std/list": ("ap", "ip", "rm", "pp"),
 }
 
 errors: list[str] = []

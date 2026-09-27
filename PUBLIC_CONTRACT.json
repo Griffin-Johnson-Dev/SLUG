@@ -83,6 +83,12 @@
       "dr",
       "dw",
       "dx"
+    ],
+    "@std/list": [
+      "ap",
+      "ip",
+      "rm",
+      "pp"
     ]
   },
   "stable_cli_commands": [

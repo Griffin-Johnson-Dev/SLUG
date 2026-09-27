@@ -7,6 +7,7 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 EXPECTED={
     'collections.slg':'1\n2\n3\n',
+    'list_mutation.slg':'[3,2,1]\ntrue\n1\n[3]\n',
     'functions.slg':'81\n',
     'hello.slg':'Hello, SLUG!\n',
     'rpn.slg':'14\n',

@@ -15,7 +15,7 @@ def run(label:str,cmd:list[str],*,env:dict[str,str]|None=None)->None:
     print(f'=== PASS {label} ({dt:.2f}s) ===',flush=True)
 
 def main()->int:
-    ap=argparse.ArgumentParser(description='Run the SLUG 1.0 release gate')
+    ap=argparse.ArgumentParser(description='Run the SLUG V1 release gate')
     ap.add_argument('--slug',type=Path,required=True,help='native compiler candidate')
     ap.add_argument('--prefix',type=Path,help='installed prefix for install/editor smoke')
     ap.add_argument('--quick',action='store_true',help='skip heavy rebuild/conformance/hardening/bootstrap stages')
@@ -33,6 +33,7 @@ def main()->int:
     run('whitespace invariance',[py,'tests/run_v1_whitespace_invariance.py','--slug',str(slug)])
     run('exception control',[py,'tests/run_v1_exception_control_hardening.py','--slug',str(slug)])
     run('module linkage',[py,'tests/run_v1_module_linkage.py','--slug',str(slug)])
+    run('list module',[py,'tests/run_v1_list_module.py','--slug',str(slug)])
     run('tooling',[py,'tests/run_v1_tooling.py','--slug',str(slug)])
     run('LSP',[py,'tests/run_v1_lsp.py','--slug',str(slug)])
     run('VS Code package',[py,'tests/run_v1_vscode_extension.py'])

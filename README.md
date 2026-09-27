@@ -1,12 +1,12 @@
-# SLUG (Symbolic Low-Overhead Unified Grammar)
+# SLUG
 
 SLUG is a compact, compiled programming language built around dense syntax, deterministic ambiguity resolution, RPN arithmetic, explicit module identities, and a self-hosted native compiler.
 
 **Language contract:** 1.0  
-**Compiler:** 1.0.1  
+**Compiler:** 1.0.2  
 **License:** Apache-2.0
 
-The v1 language design is frozen. Compiler 1.0.1 is a patch implementation of language contract 1.0: it preserves the 1.0 syntax/semantics while repairing the whitespace-invariance bug found after the 1.0.0 release. The compiler remains self-hosted, converges to a byte-identical native C fixed point, and provides failure-only native provenance for lexical, parse/structural, and semantic diagnostics without adding source-position bookkeeping to successful ambiguity parsing.
+The v1 language design is frozen. Compiler 1.0.2 implements language contract 1.0 and adds the backward-compatible explicit `@std/list` module permitted by the V1 compatibility rules. It retains the 1.0.1 whitespace-invariance repair, the self-hosted native compiler, and failure-only native provenance for lexical, parse/structural, and semantic diagnostics without adding source-position bookkeeping to successful ambiguity parsing.
 
 ## What is here
 
@@ -89,4 +89,4 @@ Recovery checkpoints and pre-v1 examples exist for provenance only.
 
 ## Release status
 
-SLUG `1.0.0` is the immutable first stable release and remains available under its exact certified tag/artifacts. This tree is the `1.0.1` patch line for language contract `1.0`. Patch releases must pass the same bootstrap, conformance, tooling/LSP/editor, adversarial, metadata, hardening, and claimed-platform certification gates before publication.
+SLUG `1.0.0` remains the immutable first stable release and `1.0.1` remains the whitespace-conformance patch release. This tree is the `1.0.2` release line for language contract `1.0`, adding the explicit `@std/list` capability module without changing root syntax or the CLI contract. It must pass the same bootstrap, conformance, tooling/LSP/editor, adversarial, metadata, hardening, and claimed-platform certification gates before publication.

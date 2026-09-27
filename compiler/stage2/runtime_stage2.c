@@ -457,6 +457,18 @@ static SlugValue sv_list_from(SlugValue *items,size_t n,bool frozen){
 }
 static SlugValue sv_list_from_args(SlugValue *items,size_t n){ return n?sv_list_from(items,n,false):sv_list_empty(false); }
 static void sv_list_append(SlugList *l,SlugValue v){if(l->frozen)sv_fail("cannot mutate frozen list");if(l->len==l->cap){size_t cap=l->cap?l->cap*2:4;l->items=(SlugValue*)sv_xrealloc(l->items,sizeof(SlugValue)*cap);l->cap=cap;}l->items[l->len++]=v;}
+static int64_t sv_norm_index(int64_t i,int64_t n);
+static SlugList *sv_require_mutable_list_value(SlugValue v,const char *op){if(v.tag!=SV_LIST||!v.as.list)sv_fail_kind("type",op);if(v.as.list->frozen)sv_fail_kind("immutable","cannot mutate frozen list");return v.as.list;}
+static size_t sv_list_api_index_position(SlugValue iv,size_t n,bool allow_end,const char *message){
+    if(iv.tag==SV_UINT){if(iv.as.u>(uint64_t)SIZE_MAX||(allow_end?(size_t)iv.as.u>n:(size_t)iv.as.u>=n))sv_fail_kind("index",message);return(size_t)iv.as.u;}
+    if(iv.tag!=SV_INT)sv_fail_kind("type",allow_end?"list insertion index must be an integer":"list pop index must be an integer");
+    if(iv.as.i>=0){uint64_t u=(uint64_t)iv.as.i;if(u>(uint64_t)SIZE_MAX||(allow_end?(size_t)u>n:(size_t)u>=n))sv_fail_kind("index",message);return(size_t)u;}
+    uint64_t mag=(uint64_t)(-(iv.as.i+1))+1;if(mag>(uint64_t)n)sv_fail_kind("index",message);return n-(size_t)mag;
+}
+static SlugValue sv_list_api_append(SlugValue lv,SlugValue value){SlugList *l=sv_require_mutable_list_value(lv,"LI.ap requires list");sv_list_append(l,value);return lv;}
+static SlugValue sv_list_api_insert(SlugValue lv,SlugValue index,SlugValue value){SlugList *l=sv_require_mutable_list_value(lv,"LI.ip requires list");size_t i=sv_list_api_index_position(index,l->len,true,"list insertion index out of range");if(l->len==l->cap){if(l->cap>SIZE_MAX/2)sv_fail_kind("resource","list capacity overflow");size_t cap=l->cap?l->cap*2:4;if(cap>SIZE_MAX/sizeof(SlugValue))sv_fail_kind("resource","list capacity overflow");l->items=(SlugValue*)sv_xrealloc(l->items,sizeof(SlugValue)*cap);l->cap=cap;}if(i<l->len){size_t count=l->len-i;if(count>SIZE_MAX/sizeof(SlugValue))sv_fail_kind("resource","list insert move overflow");memmove(l->items+i+1,l->items+i,sizeof(SlugValue)*count);}l->items[i]=value;l->len++;return lv;}
+static SlugValue sv_list_api_remove(SlugValue lv,SlugValue value){SlugList *l=sv_require_mutable_list_value(lv,"LI.rm requires list");for(size_t i=0;i<l->len;i++)if(sv_equal(l->items[i],value)){if(i+1<l->len){size_t count=l->len-i-1;if(count>SIZE_MAX/sizeof(SlugValue))sv_fail_kind("resource","list remove move overflow");memmove(l->items+i,l->items+i+1,sizeof(SlugValue)*count);}l->len--;if(l->items)l->items[l->len]=sv_null();return sv_bool(true);}return sv_bool(false);}
+static SlugValue sv_list_api_pop(SlugValue lv,bool has_index,SlugValue index){SlugList *l=sv_require_mutable_list_value(lv,"LI.pp requires list");if(!l->len)sv_fail_kind("index","cannot pop from empty list");size_t i=has_index?sv_list_api_index_position(index,l->len,false,"list pop index out of range"):l->len-1;SlugValue out=l->items[i];if(i+1<l->len){size_t count=l->len-i-1;if(count>SIZE_MAX/sizeof(SlugValue))sv_fail_kind("resource","list pop move overflow");memmove(l->items+i,l->items+i+1,sizeof(SlugValue)*count);}l->len--;l->items[l->len]=sv_null();return out;}
 static SlugMap *sv_map_new_raw(bool frozen,size_t n){
     SlugMap *m=(SlugMap*)sv_heap_alloc(sizeof(SlugMap),SH_MAP); m->frozen=frozen; m->len=0; m->cap=n;
     m->keys=n?(SlugValue*)sv_xmalloc(sizeof(SlugValue)*n):NULL; m->vals=n?(SlugValue*)sv_xmalloc(sizeof(SlugValue)*n):NULL; return m;
@@ -1196,7 +1208,8 @@ static SlugValue sv_capability_present(SlugValue name){
         "@std/fs.fr","@std/fs.ft","@std/fs.fw","@std/fs.fa","@std/fs.fe","@std/fs.fd","@std/fs.fm","@std/fs.md","@std/fs.rm","@std/fs.mv","@std/fs.fo","@std/fs.hr","@std/fs.hw","@std/fs.hs","@std/fs.hp","@std/fs.hf","@std/fs.hc",
         "@std/net.so","@std/net.cn","@std/net.bn","@std/net.ls","@std/net.ac","@std/net.sd","@std/net.rc","@std/net.sc","@std/net.gp",
         "@std/gfx.sf","@std/gfx.px","@std/gfx.rf","@std/gfx.dl","@std/gfx.sb",
-        "@std/dev.do","@std/dev.dv","@std/dev.dr","@std/dev.dw","@std/dev.dx"};
+        "@std/dev.do","@std/dev.dv","@std/dev.dr","@std/dev.dw","@std/dev.dx",
+        "@std/list.ap","@std/list.ip","@std/list.rm","@std/list.pp"};
     for(size_t i=0;i<sizeof(always)/sizeof(always[0]);i++)if(sv_string_is_ascii_literal(name,always[i]))return sv_bool(true);
 #ifdef _WIN32
     const char *win[]={"@std/gfx.wn","@std/gfx.wf","@std/gfx.pe","@std/gfx.wx","@std/audio.au","@std/audio.aq","@std/audio.ax"};
@@ -1214,6 +1227,10 @@ static SlugValue sv_builtin_iv(size_t argc,SlugValue *argv){if(argc!=2)sv_fail("
 static SlugValue sv_builtin_ln(size_t argc,SlugValue *argv){if(argc!=1)sv_fail("ln arity");return sv_ln(argv[0]);}
 static SlugValue sv_builtin_sl(size_t argc,SlugValue *argv){if(argc!=1)sv_fail("sl arity");return sv_sl(argv[0]);}
 static SlugValue sv_builtin_by(size_t argc,SlugValue *argv){if(argc!=1)sv_fail("by arity");return sv_by(argv[0]);}
+static SlugValue sv_builtin_list_ap(size_t argc,SlugValue *argv){if(argc!=2)sv_fail("LI.ap arity");return sv_list_api_append(argv[0],argv[1]);}
+static SlugValue sv_builtin_list_ip(size_t argc,SlugValue *argv){if(argc!=3)sv_fail("LI.ip arity");return sv_list_api_insert(argv[0],argv[1],argv[2]);}
+static SlugValue sv_builtin_list_rm(size_t argc,SlugValue *argv){if(argc!=2)sv_fail("LI.rm arity");return sv_list_api_remove(argv[0],argv[1]);}
+static SlugValue sv_builtin_list_pp(size_t argc,SlugValue *argv){if(argc<1||argc>2)sv_fail("LI.pp arity");return sv_list_api_pop(argv[0],argc==2,argc==2?argv[1]:sv_null());}
 static SlugValue sv_builtin_cli_ex(size_t argc,SlugValue *argv){if(argc!=1)sv_fail("internal cli ex arity");return sv_cli_exit_value(argv[0]);}
 static SlugValue sv_builtin_cli_se(size_t argc,SlugValue *argv){if(argc!=1)sv_fail("internal cli se arity");return sv_cli_stderr_value(argv[0]);}
 static SlugValue sv_builtin_cli_so(size_t argc,SlugValue *argv){if(argc!=1)sv_fail("internal cli so arity");return sv_cli_stdout_value(argv[0]);}

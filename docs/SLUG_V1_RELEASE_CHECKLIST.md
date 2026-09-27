@@ -1,6 +1,6 @@
-# SLUG 1.0 Release Checklist
+# SLUG V1 Release Checklist
 
-This is the public-release closure gate. A recovery checkpoint being green is necessary but not sufficient for a `1.0.0` tag.
+This is the public-release closure gate. A recovery checkpoint being green is necessary but not sufficient for a public tag.
 
 ## Identity and source
 
@@ -9,6 +9,7 @@ This is the public-release closure gate. A recovery checkpoint being green is ne
 - [ ] Source archive contains no build products, caches, editor packages, temporary probes, or shadow files.
 - [ ] `SOURCE_SHA256SUMS.txt` covers every intended source file exactly once and verifies from a fresh extraction.
 - [ ] Release manifest records archive hash, canonical generated-C hash, bootstrap seed hash, compiler/language/CLI versions, and tested platform/toolchain identities.
+- [ ] Platform certificates record the SHA-256 of the actual installed native compiler(s), not only the seed/source tree.
 
 ## Compiler and language
 
@@ -41,4 +42,4 @@ This is the public-release closure gate. A recovery checkpoint being green is ne
 - [ ] Build one release candidate from the exact clean archive and freeze it.
 - [ ] Run the entire gate against artifacts installed from that RC, not a developer worktree.
 - [ ] Record known limitations without silently broadening platform/support claims.
-- [ ] Only then change compiler version to `1.0.0`, regenerate metadata/manifests/hashes, repeat the clean proof, and tag the release.
+- [ ] The final compiler version is frozen before certification; after all claimed platforms pass, tag and publish the exact unchanged certified tree.

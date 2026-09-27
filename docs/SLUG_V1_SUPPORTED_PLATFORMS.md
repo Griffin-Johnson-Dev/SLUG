@@ -1,21 +1,19 @@
-# SLUG 1.0 Supported Platforms
+# SLUG V1 Supported Platforms
 
-Support is claimed only after the exact release candidate passes the release gate on that host/toolchain. A compiler accepting the generated C is not, by itself, a support claim.
+Support is claimed only after the **exact release source tree** passes the release gate on that host/toolchain. A compiler accepting generated C is not, by itself, a support claim. Final per-release PASS records are published as external certification sidecars so the certified source archive does not need to be edited after testing.
 
-## Release-candidate matrix
+## Required V1 certification matrix
 
-| Platform | Toolchain | Status |
+| Platform | Toolchain | Requirement |
 | --- | --- | --- |
-| x86-64 Linux | GCC 14.2.0, C11 | **PASS — certified 2026-09-25** |
-| x86-64 Linux | Clang 17.0.0, C11 | **PASS — certified 2026-09-25** |
-| x86-64 Windows | clang-cl 23.1.1 + LLVM clang 23.1.1 | **PASS — 1.0.0 certified 2026-09-26; 1.0.1 exact-tree recertification required before 1.0.1 publication** |
-| macOS | — | not claimed for 1.0 unless separately tested |
+| x86-64 Linux | GCC 14.x or release-recorded equivalent, C11 | full bootstrap + installed distribution + full release gate |
+| x86-64 Linux | Clang 17.x or release-recorded equivalent, C11 | full bootstrap + installed distribution + full release gate |
+| x86-64 Windows 11 | clang-cl + LLVM clang, release-recorded versions | installed clang-cl build + bootstrap + full LLVM release gate |
+| macOS | — | not claimed unless separately certified |
 
-Each claimed platform must exercise compiler build, installed-prefix layout, UTF-8 source/console/path behavior, runtime conformance, LSP discovery, and the supported memory-safety diagnostics available on that host.
+Each claimed platform exercises compiler build, installed-prefix layout, UTF-8 source/console/path behavior, runtime conformance, LSP discovery, editor packaging, public examples, and the available native hardening/sanitizer gates. A prior-version PASS never certifies a later source tree.
 
-The Linux certifications above are release requirements for the exact `1.0.0` canonical seed on x86-64 Linux and are re-run during final artifact closure. Both installed distributions passed the install/layout, public CLI, project/dependency, identifier, exception-control, provider/module-linkage, native tooling, LSP, VS Code, deterministic malformed-source, and dedicated UTF-8 path/import/stdin/stdout gates. The common native conformance battery also passed reference/native lexer, expression, program, and semantic differentials, audited conformance, O0/O3 optimizer differential, ASan, and UBSan.
-
-The source tree may contain portability code for additional hosts without implying support for them.
+Certification sidecars bind the release to the compiler/language versions, canonical-seed SHA-256, source-manifest SHA-256, toolchain/host identity, and SHA-256 of the actual installed compiler executable.
 
 ### Windows certification command
 
@@ -25,4 +23,12 @@ On an x86-64 Windows host with Python 3.11+, Node.js, LLVM `clang-cl`, and LLVM 
 .\scripts\certify_windows.ps1
 ```
 
-That script is the release-authority path for certifying each exact Windows release tree. It performs an installed `clang-cl` build, fixed-point bootstrap proof, the full native/differential release gate, editor/install smoke, UTF-8 coverage, and public-example execution. A prior-version PASS does not automatically certify a later patch tree.
+### Linux certification command
+
+On the Linux certification host with Python 3.11+, Node.js, GCC, and Clang:
+
+```sh
+bash scripts/certify_linux.sh
+```
+
+Both helpers are release-authority paths for the exact extracted source tree.

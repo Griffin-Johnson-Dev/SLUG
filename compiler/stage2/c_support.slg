@@ -138,6 +138,7 @@
         '@std/gfx.sf':'sv_builtin_sf','@std/gfx.px':'sv_builtin_px','@std/gfx.rf':'sv_builtin_rf','@std/gfx.dl':'sv_builtin_dl','@std/gfx.sb':'sv_builtin_sb','@std/gfx.wn':'sv_builtin_wn','@std/gfx.wf':'sv_builtin_wf','@std/gfx.pe':'sv_builtin_pe','@std/gfx.wx':'sv_builtin_wx',
         '@std/audio.au':'sv_builtin_au','@std/audio.aq':'sv_builtin_aq','@std/audio.ax':'sv_builtin_ax',
         '@std/dev.do':'sv_builtin_do','@std/dev.dv':'sv_builtin_dv','@std/dev.dr':'sv_builtin_dr','@std/dev.dw':'sv_builtin_dw','@std/dev.dx':'sv_builtin_dx',
+        '@std/list.ap':'sv_builtin_list_ap','@std/list.ip':'sv_builtin_list_ip','@std/list.rm':'sv_builtin_list_rm','@std/list.pp':'sv_builtin_list_pp',
         '@internal/cli.ex':'sv_builtin_cli_ex','@internal/cli.se':'sv_builtin_cli_se','@internal/cli.so':'sv_builtin_cli_so','@internal/cli.ep':'sv_builtin_cli_ep'
     ];
     h:=in[k,z];?!h{r:=nn;rv r;}r:=z[k];rv r;

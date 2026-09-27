@@ -10,3 +10,5 @@ slug run examples/hello.slg
 ```
 
 The examples intentionally stay small; the conformance suite in `tests/` is the executable language authority.
+
+`list_mutation.slg` demonstrates `@std/list` through the conventional `LI` alias and active-namespace selection with `<:LI`.

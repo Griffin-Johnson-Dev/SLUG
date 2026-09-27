@@ -41,6 +41,7 @@
     z['@std/gfx'] := m;
     m = [:]; m['au'] := ['a':2,'b':2,'d':0]; m['aq'] := ['a':2,'b':2,'d':0]; m['ax'] := ['a':1,'b':1,'d':0]; z['@std/audio'] := m;
     m = [:]; m['do'] := ['a':2,'b':2,'d':0]; m['dv'] := ['a':2,'b':2,'d':0]; m['dr'] := ['a':2,'b':2,'d':0]; m['dw'] := ['a':2,'b':2,'d':0]; m['dx'] := ['a':1,'b':1,'d':0]; z['@std/dev'] := m;
+    m = [:]; m['ap'] := ['a':2,'b':2,'d':0]; m['ip'] := ['a':3,'b':3,'d':0]; m['rm'] := ['a':2,'b':2,'d':0]; m['pp'] := ['a':1,'b':2,'d':0]; z['@std/list'] := m;
     ##! Compiler-internal CLI host hooks. Not part of the public @std/* contract.
     m = [:]; m['ex'] := ['a':1,'b':1,'d':0]; m['se'] := ['a':1,'b':1,'d':0]; m['so'] := ['a':1,'b':1,'d':0]; m['ep'] := ['a':0,'b':0,'d':0]; z['@internal/cli'] := m;
     rv z;

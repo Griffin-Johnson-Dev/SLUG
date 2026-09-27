@@ -7,7 +7,9 @@ param(
 $ErrorActionPreference='Stop'
 $Root=Split-Path -Parent $PSScriptRoot
 Set-Location $Root
-if (-not $Report) { $Report = Join-Path $Root 'build\WINDOWS_CERTIFICATION.json' }
+$VersionExpected=(Get-Content -Raw (Join-Path $Root 'VERSION')).Trim()
+$LanguageExpected=(Get-Content -Raw (Join-Path $Root 'LANGUAGE_VERSION')).Trim()
+if (-not $Report) { $Report = Join-Path $Root ("build\WINDOWS_CERTIFICATION_SLUG-$VersionExpected.json") }
 
 python tools/release_metadata.py
 if ($LASTEXITCODE -ne 0) { throw 'release metadata verification failed' }
@@ -90,11 +92,11 @@ if (-not $Architecture) { $Architecture=$env:PROCESSOR_ARCHITECTURE }
 if (-not $Architecture) { $Architecture='unknown' }
 
 $Record = [ordered]@{
-    schema = 1
+    schema = 2
     status = 'PASS'
     certified_at_utc = [DateTime]::UtcNow.ToString('o')
-    compiler_version = (Get-Content -Raw (Join-Path $Root 'VERSION')).Trim()
-    language_version = (Get-Content -Raw (Join-Path $Root 'LANGUAGE_VERSION')).Trim()
+    compiler_version = $VersionExpected
+    language_version = $LanguageExpected
     os = $OsDescription
     architecture = $Architecture
     powershell_version = $PSVersionTable.PSVersion.ToString()
@@ -104,6 +106,12 @@ $Record = [ordered]@{
     full_gate_compiler_version = $FullCCVersion
     canonical_seed_sha256 = (Get-FileHash -Algorithm SHA256 (Join-Path $Root 'bootstrap\slug_seed.c')).Hash.ToLowerInvariant()
     source_manifest_sha256 = $(if (Test-Path $Manifest) { (Get-FileHash -Algorithm SHA256 $Manifest).Hash.ToLowerInvariant() } else { $null })
+    installed_compiler_path = $Slug
+    installed_compiler_sha256 = (Get-FileHash -Algorithm SHA256 $Slug).Hash.ToLowerInvariant()
+    installed_devkit_sha256 = $(
+        $Vsix = Join-Path $Prefix 'share\slug\1.0\tooling\vscode\slug-language.vsix'
+        if (Test-Path $Vsix) { (Get-FileHash -Algorithm SHA256 $Vsix).Hash.ToLowerInvariant() } else { $null }
+    )
 }
 $Record | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 $Report
 Write-Host "Windows certification record: $Report"

@@ -145,6 +145,53 @@ class AuditedV1ConformanceTests(unittest.TestCase):
             cp = subprocess.run([str(exe)], capture_output=True, check=True)
             self.assertEqual(self.logical_stdout(cp.stdout), b"false\n")
 
+    def test_standard_list_mutation_module_and_active_namespace(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = root / "main.slg"
+            src.write_text(
+                ">\'@std/list\':LI\n"
+                "a:=[] LI.ap[a,3$] <:LI ap[a,1$] ip[a,1$,2$] "
+                "co[a] co[rm[a,2$]] co[rm[a,99$]] co[pp[a]] co[a] <:. "
+                "co[LI.pp[a,0$]] co[a]",
+                encoding="utf-8",
+            )
+            exe = root / ("probe.exe" if sys.platform == "win32" else "probe")
+            build_file(src, exe)
+            cp = subprocess.run([str(exe)], capture_output=True, check=True)
+            self.assertEqual(
+                self.logical_stdout(cp.stdout),
+                b"[3,2,1]\ntrue\nfalse\n1\n[3]\n3\n[]\n",
+            )
+
+    def test_standard_list_mutation_rejects_frozen_list(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = root / "main.slg"
+            src.write_text(
+                ">\'@std/list\':LI a:=@[1$] LI.ap[a,2$]",
+                encoding="utf-8",
+            )
+            exe = root / ("probe.exe" if sys.platform == "win32" else "probe")
+            build_file(src, exe)
+            cp = subprocess.run([str(exe)], capture_output=True, check=False)
+            self.assertNotEqual(cp.returncode, 0)
+            self.assertIn(b"kind='immutable'", cp.stderr)
+
+    def test_standard_list_rm_does_not_collide_with_fs_rm(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            src = root / "main.slg"
+            src.write_text(
+                ">\'@std/list\':LI >\'@std/fs\':FS "
+                "a:=[1$] co[LI.rm[a,1$]] co[FS.fe[\'/definitely/not/a/slug/path\']]",
+                encoding="utf-8",
+            )
+            exe = root / ("probe.exe" if sys.platform == "win32" else "probe")
+            build_file(src, exe)
+            cp = subprocess.run([str(exe)], capture_output=True, check=True)
+            self.assertEqual(self.logical_stdout(cp.stdout), b"true\nfalse\n")
+
     def test_system_capability_query_uses_canonical_operation_ids(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.2 — 2026-09-26
+
+- Added the backward-compatible explicit `@std/list` standard module with conventional alias `LI`.
+- Added `LI.ap[list,value]` for in-place append, `LI.ip[list,index,value]` for insertion, `LI.rm[list,value]` for first-match structural removal, and `LI.pp[list]` / `LI.pp[list,index]` for pop.
+- Standard-module native dispatch is keyed by module identity plus export name, so compact names may safely coexist across modules; in particular `LI.rm` and `FS.rm` are distinct operations.
+- Added structured list-mutation error behavior for non-list, non-integer index, out-of-range/empty pop, and frozen-list mutation cases.
+- Added `@std/sys.cp` capability identifiers for all four list operations, a public list-mutation example, and a permanent 9-case list-module regression gate.
+- Kept language contract `1.0`, CLI contract `1`, and the nine root builtins unchanged. The V1 specification permits compatible additions of explicit namespaced standard modules.
+- Carried forward SLUG Lang DevKit 1.0.3 unchanged; no new editor grammar is required for the namespaced list API.
+
 ## 1.0.1 — 2026-09-26
 
 - Fixed a language-contract conformance bug where structural/comparison punctuation such as `:=`, `::=`, `==`, `!=`, `<=`, `>=`, `<:`, and their three-character relatives required physical adjacency even though spacing must not be needed to express those grammar forms.

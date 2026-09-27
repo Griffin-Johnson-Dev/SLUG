@@ -1,0 +1,12 @@
+## Mutable-list operations through the explicit standard list module.
+>'@std/list':LI
+a:=[]
+LI.ap[a,3$]
+<:LI
+ap[a,1$]
+ip[a,1$,2$]
+co[a]
+co[rm[a,2$]]
+co[pp[a]]
+co[a]
+<:.

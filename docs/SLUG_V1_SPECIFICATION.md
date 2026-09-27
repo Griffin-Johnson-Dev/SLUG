@@ -248,6 +248,8 @@ One result may broadcast to multiple targets. Multiple results must exactly matc
 
 A shallow freeze prevents mutation of that container but does not recursively freeze children.
 
+List length mutation is provided by the explicit `@std/list` module. With `>'@std/list':LI`, `LI.ap[list,value]` appends, `LI.ip[list,index,value]` inserts, `LI.rm[list,value]` removes the first structurally-equal value and reports success, and `LI.pp[list]` / `LI.pp[list,index]` remove and return an element. These operations reject frozen lists. Because `LI` is a normal namespace alias, `<:LI` may activate the module for bare calls subject to the ordinary namespace-ambiguity rule.
+
 Map keys are restricted to stable values: null, Boolean, integers, finite floats, string, and bytes. Numeric keys that are equal under numeric `==` denote the same key. Duplicate-equal keys in a map literal are errors.
 
 Maps preserve insertion order for iteration and display. Updating an existing key does not move it.
@@ -400,10 +402,11 @@ The following explicit standard-module identities are reserved in SLUG 1.0:
 - `@std/gfx`
 - `@std/audio`
 - `@std/dev`
+- `@std/list`
 
 They are distribution modules, not root builtin expansion points. Unsupported platform facilities raise a catchable capability error rather than silently emulating unrelated behavior.
 
-The v1.0 implementation export surface is recorded in `docs/SLUG_V1_STANDARD_MODULES.md`. A v1.x release may add an explicit export only when doing so preserves already-valid source under the namespace ambiguity rules.
+The v1.0 implementation export surface is recorded in `docs/SLUG_V1_STANDARD_MODULES.md`. A v1.x release may add an explicit standard module or export only when doing so preserves already-valid source under the namespace ambiguity rules.
 
 Host text boundaries such as paths, environment keys, and similar C/OS text interfaces reject embedded NUL. File/socket/device **contents** remain length-tracked and binary-safe.
 

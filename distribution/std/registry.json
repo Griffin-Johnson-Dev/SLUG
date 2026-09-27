@@ -71,6 +71,12 @@
       "dr",
       "dw",
       "dx"
+    ],
+    "@std/list": [
+      "ap",
+      "ip",
+      "rm",
+      "pp"
     ]
   },
   "note": "Reserved @std/* URIs are compiler/runtime-backed in SLUG 1.0; this registry is distribution metadata, not source-module lookup."

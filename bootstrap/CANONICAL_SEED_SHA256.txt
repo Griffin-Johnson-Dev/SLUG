@@ -1,1 +1,1 @@
-f7c2491ac0e696775037127004899f6e8a3566c8b75b14c3e50171f7b5e08f4d  bootstrap/slug_seed.c
+8de72baacbfbfc9c16318aa4c323ccd433a0e5ac30bd87777aba4e426816668e  bootstrap/slug_seed.c
